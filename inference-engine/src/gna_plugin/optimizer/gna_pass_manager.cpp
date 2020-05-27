@@ -24,6 +24,7 @@
 #include <ie_util_internal.hpp>
 #include <graph_tools.hpp>
 #include <net_pass.h>
+#include <frontend/quantization.h>
 
 #include "gna_plugin_log.hpp"
 #include "frontend/quantized_layer_params.hpp"
@@ -731,7 +732,7 @@ void InsertConcatAligningFilterPass::run() {
                 // insert the filter
                 auto filterName = std::string("ConcatAlignFilter_") + std::to_string(numOfFilterLayers++);
                 auto concatAligningFilter =
-                    std::make_shared<WeightableLayer>(LayerParams({filterName, "ConcatAlignFilter", Precision::FP32}));
+                    std::make_shared<CNNLayer>(LayerParams({filterName, "ConcatAlignFilter", Precision::FP32}));
 
                 if (dims.size() != 2) {
                     THROW_GNA_EXCEPTION << "unsupported concat input    a of dims.size()=" << dims.size() << ", layer=" << prevLayer->name;
@@ -742,17 +743,17 @@ void InsertConcatAligningFilterPass::run() {
                 size_t num_rows_padded = (offset - aligned64_offset) / bytesPerConcatElement;
                 size_t num_rows_out = num_rows_padded + num_rows_in;
 
-                // encodes offset to beginning of split layer input
+                // encodes offset to beginning of concat layer input
                 concatAligningFilter->params["output_offset"] =
                         std::to_string((aligned64_offset / bytesPerConcatElement) * (quantized ? bytesPerConcatElement : 4));
 
-                // for padded rows we cannot use copy layer - TBD how to implement
+                // for padded rows we will use copy only in FAST mode, not in FAST_ZERO_OFFSET mode
                 concatAligningFilter->params["num_rows_padded"] = std::to_string(num_rows_padded);
 
                 // encodes original output size
                 concatAligningFilter->params["original_num_rows"] = std::to_string(num_rows_in);
 
-                std::vector<float> filterWeights(num_rows_out * num_rows_in, 0.f);
+             /*   std::vector<float> filterWeights(num_rows_out * num_rows_in, 0.f);
 
                 auto identityIdx = num_rows_padded * num_rows_in;
                 for (int i = 0; i != num_rows_in; i++) {
@@ -768,6 +769,7 @@ void InsertConcatAligningFilterPass::run() {
                 concatAligningFilter->_weights->allocate();
 
                 CopyVectorToBlob(concatAligningFilter->_weights, filterWeights);
+                */
 
                 // modifying output rows to be used - to avoid modification to original concat we are store num of elements in params
                 dims[1] = num_rows_out;
@@ -777,9 +779,16 @@ void InsertConcatAligningFilterPass::run() {
                                                                  dims,
                                                                  concatInput->getLayout()));
 
-                auto filterWithQuant = quantized ?
-                                       InferenceEngine::injectData<QuantizedLayerParams>(concatAligningFilter) :
-                                       concatAligningFilter;
+                auto filterWithQuant = concatAligningFilter;
+
+                if (quantized) {
+                    filterWithQuant = InferenceEngine::injectData<QuantizedLayerParams>(concatAligningFilter);
+                    auto quantizedFilter = InferenceEngine::getInjectedData<QuantizedLayerParams>(filterWithQuant);
+                    // we know weights will be quantized in advance when they are generated
+                    float weightsStub[] = {0.f, 1.f};
+                    quantizedFilter->_weights_quant.scale
+                        = ScaleFactorForQuantization(weightsStub, MAX_VAL_2B_WEIGHT, sizeof(weightsStub) / sizeof (*weightsStub));
+                }
                 outData->getCreatorLayer() = filterWithQuant;
                 filterWithQuant->outData.push_back(outData);
 
