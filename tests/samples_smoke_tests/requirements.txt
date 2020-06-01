@@ -1,0 +1,7 @@
+test-generator
+numpy
+opencv-python
+progress
+nibabel
+pytest
+scipy
