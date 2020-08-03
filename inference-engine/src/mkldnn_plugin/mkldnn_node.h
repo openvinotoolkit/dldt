@@ -16,6 +16,7 @@
 #include <ie_layers_property.hpp>
 #include "mkldnn_dims.h"
 #include "mkldnn_memory.h"
+#include "mkldnn_layout_config.h"
 #include "mkldnn_edge.h"
 #include "mkldnn_descriptor.h"
 #include "mkldnn/iml_type_mapper.h"
@@ -23,6 +24,7 @@
 #include "mkldnn_primitive.h"
 #include "mkldnn_weights_cache.hpp"
 #include "mkldnn.hpp"
+#include "gp_utils.h"
 
 namespace MKLDNNPlugin {
 
@@ -173,30 +175,18 @@ static std::string NameFromType(Type type) {
 
 class PrimitiveDescInfo {
 public:
-    PrimitiveDescInfo(const InferenceEngine::LayerConfig conf, impl_desc_type type): config(conf) {
-        implementationType = type;
-    }
-
-    PrimitiveDescInfo(const InferenceEngine::LayerConfig conf, impl_desc_type type, std::vector<mkldnn::memory::format> outFmts): config(conf) {
-        implementationType = type;
-        outputLayouts = outFmts;
-    }
-
-    PrimitiveDescInfo(const InferenceEngine::LayerConfig conf, impl_desc_type type, mkldnn::memory::format outFmt): config(conf) {
-        implementationType = type;
-
-        setOutputLayouts(outFmt);
-    }
+    PrimitiveDescInfo(const InferenceEngine::LayerConfig conf, impl_desc_type type) :
+            config(conf), implementationType(type) {}
 
     PrimitiveDescInfo(const PrimitiveDescInfo &descInfo) = default;
     PrimitiveDescInfo(PrimitiveDescInfo &&descInfo) = default;
 
     PrimitiveDescInfo &operator=(const PrimitiveDescInfo &descInfo) = default;
 
-    const InferenceEngine::LayerConfig getConfig() const {
+    const MKLDNNLayoutConfig& getConfig() const {
         return config;
     }
-    InferenceEngine::LayerConfig& getConfig() {
+    MKLDNNLayoutConfig& getConfig() {
         return config;
     }
 
@@ -204,26 +194,13 @@ public:
         return implementationType;
     }
 
-    const std::vector<mkldnn::memory::format>& getOutputLayouts() const {
-        return outputLayouts;
-    }
-
     void setImplementationType(impl_desc_type type) {
         implementationType = type;
     }
 
-    void setOutputLayouts(mkldnn::memory::format outFmt) {
-        outputLayouts.clear();
-
-        for (int i = 0; i < config.outConfs.size(); i++) {
-            outputLayouts.push_back(outFmt);
-        }
-    }
-
 private:
-    InferenceEngine::LayerConfig config;
+    MKLDNNLayoutConfig config;
     impl_desc_type implementationType;
-    std::vector<mkldnn::memory::format> outputLayouts;
 };
 
 class MKLDNNNode : public InferenceEngine::details::no_copy {
@@ -357,7 +334,7 @@ public:
     virtual void getSupportedDescriptors() = 0;
     virtual void createDescriptor(const std::vector<InferenceEngine::TensorDesc>& inputDesc,
                                   const std::vector<InferenceEngine::TensorDesc>& outputDesc) {}
-    virtual void initDescriptor(const InferenceEngine::LayerConfig& config);
+    virtual void initDescriptor(const MKLDNNLayoutConfig& config);
     virtual bool created() const = 0;
     virtual bool created(const MKLDNNExtensionManager::Ptr& extMgr) {
         return created();
@@ -371,8 +348,8 @@ public:
 
     template <class PD, class D, typename FPD = bool>
     PD createPrimitiveDescriptor(const mkldnn::primitive_attr &attr = mkldnn::primitive_attr()) {
-        auto descsEqual = [](const std::vector<InferenceEngine::TensorDesc>& srcDescs,
-                               const std::vector<InferenceEngine::DataConfig>& selectedDescs) {
+        auto descsEqual = [](const std::vector<MKLDNNMemoryDesc>& srcDescs,
+                               const std::vector<MKLDNNPortConfig>& selectedDescs) {
             if (srcDescs.empty() && selectedDescs.empty())
                 return true;
             if (srcDescs.empty() || selectedDescs.empty())
@@ -381,7 +358,7 @@ public:
                 if (!(srcDescs[i].getBlockingDesc() == selectedDescs[i].desc.getBlockingDesc() &&
                       srcDescs[i].getPrecision() == selectedDescs[i].desc.getPrecision() &&
                       srcDescs[i].getDims() == selectedDescs[i].desc.getDims()) &&
-                      srcDescs[i].getLayout() != InferenceEngine::Layout::ANY)
+                      srcDescs[i].isDefined())
                     return false;
             }
             return true;
@@ -395,7 +372,7 @@ public:
             auto itpd = desc.createPrimitiveDescriptorIterator(engine, attr);
 
             while (itpd.is_not_end())  {
-                std::vector<InferenceEngine::TensorDesc> srcDescs;
+                std::vector<MKLDNNMemoryDesc> srcDescs;
                 for (size_t i = 0; i < descInputNumbers(desc); i++)
                     srcDescs.push_back(getSrcMemDesc(itpd, i));
 
@@ -469,8 +446,8 @@ protected:
     virtual int getMaxBatch();
 
 
-    virtual InferenceEngine::TensorDesc getConfiguredInputDesc(const InferenceEngine::LayerConfig& config, size_t idx) const;
-    virtual InferenceEngine::TensorDesc getConfiguredOutputDesc(const InferenceEngine::LayerConfig& config, size_t idx) const;
+    virtual MKLDNNMemoryDesc getConfiguredInputDesc(const MKLDNNLayoutConfig& config, size_t idx) const;
+    virtual MKLDNNMemoryDesc getConfiguredOutputDesc(const MKLDNNLayoutConfig& config, size_t idx) const;
     virtual MKLDNNMemoryDesc getSrcMemDesc(mkldnn::primitive_desc_iterator &primitive_desc_it, size_t idx);
     virtual MKLDNNMemoryDesc getDstMemDesc(mkldnn::primitive_desc_iterator &primitive_desc_it, size_t idx);
 
@@ -519,8 +496,8 @@ protected:
     friend class MKLDNNGraph;
     friend class MKLDNNGraphOptimizer;
 
-    bool isUninitTensorDesc(const InferenceEngine::TensorDesc& desc) const;
-    bool isInitConfig(const InferenceEngine::LayerConfig& config) const;
+    bool isUninitTensorDesc(const MKLDNNMemoryDesc& desc) const;
+    bool isInitConfig(const MKLDNNLayoutConfig& config) const;
     virtual void selectPreferPrimitiveDescriptor(const std::vector<impl_desc_type>& priority);
     virtual bool canBeInPlace() const;
 
@@ -574,16 +551,5 @@ private:
 
 #define REG_MKLDNN_PRIM_FOR(__prim, __type) \
 static MKLDNNNode::Register<__prim> __reg__##__type(#__type)
-
-template <typename T, typename U>
-inline T div_up(const T a, const U b) {
-    assert(b);
-    return (a + b - 1) / b;
-}
-
-template <typename T, typename U>
-inline T rnd_up(const T a, const U b) {
-    return div_up(a, b) * b;
-}
 
 }  // namespace MKLDNNPlugin
