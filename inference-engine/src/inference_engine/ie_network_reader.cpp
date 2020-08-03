@@ -5,6 +5,7 @@
 #include "ie_network_reader.hpp"
 
 #include <details/ie_so_pointer.hpp>
+#include <details/ie_mmap_allocator.hpp>
 #include <file_utils.h>
 #include <ie_blob_stream.hpp>
 #include <ie_profiling.hpp>
@@ -78,7 +79,7 @@ public:
         auto reader = getReaderPtr();
         return reader->read(model, exts);
     }
-    CNNNetwork read(std::istream& model, std::istream& weights, const std::vector<IExtensionPtr>& exts) const override {
+    CNNNetwork read(std::istream& model, const Blob::CPtr& weights, const std::vector<IExtensionPtr>& exts) const override {
         auto reader = getReaderPtr();
         return reader->read(model, weights, exts);
     }
@@ -200,14 +201,19 @@ CNNNetwork details::ReadNetwork(const std::string& modelPath, const std::string&
 #else
                 std::string weights_path = bPath;
 #endif
-                std::ifstream binStream;
-                binStream.open(weights_path, std::ios::binary);
-                if (!binStream.is_open())
+                std::shared_ptr<IAllocator> allocator = details::make_mmap_allocator(weights_path.c_str());
+                void* data = allocator->alloc(0);
+
+                if (data == nullptr)
                     THROW_IE_EXCEPTION << "Weights file " << bPath << " cannot be opened!";
 
+                details::MmapAllocator* mmap = reinterpret_cast<details::MmapAllocator*>(allocator.get());
+                const Blob::CPtr weights = make_shared_blob<uint8_t>({Precision::U8, { mmap->size() }, C }, reinterpret_cast<unsigned char*>(data));
+
                 // read model with weights
-                auto network = reader->read(modelStream, binStream, exts);
-                modelStream.close();
+                CNNNetwork network = reader->read(modelStream, weights, exts);
+                network.setWeightsAllocator(allocator);
+
                 return network;
             }
             // read model without weights
@@ -223,7 +229,6 @@ CNNNetwork details::ReadNetwork(const std::string& model, const Blob::CPtr& weig
     // Register readers if it is needed
     registerReaders();
     std::istringstream modelStream(model);
-    details::BlobStream binStream(weights);
 
     assertIfIRv7LikeModel(modelStream);
 
@@ -231,7 +236,7 @@ CNNNetwork details::ReadNetwork(const std::string& model, const Blob::CPtr& weig
         auto reader = it->second;
         if (reader->supportModel(modelStream)) {
             if (weights)
-                return reader->read(modelStream, binStream, exts);
+                return reader->read(modelStream, weights, exts);
             return reader->read(modelStream, exts);
         }
     }

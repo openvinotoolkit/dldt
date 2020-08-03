@@ -241,6 +241,15 @@ public:
         CALL_STATUS_FNC(serialize, xmlPath, binPath);
     }
 
+    /**
+     * @brief Set pointer to weights map.
+     *
+     * @param weights Weights data.
+    */
+    void setWeightsAllocator(std::shared_ptr<IAllocator>& weights) {
+        this->weights = weights;
+    }
+
 protected:
     /**
      * @brief Network extra interface, might be nullptr
@@ -255,6 +264,10 @@ protected:
      * @brief A pointer to output data
      */
     DataPtr output;
+    /**
+     * @brief A pointer to weights data
+    */
+    std::shared_ptr<IAllocator> weights;
 };
 
 }  // namespace InferenceEngine

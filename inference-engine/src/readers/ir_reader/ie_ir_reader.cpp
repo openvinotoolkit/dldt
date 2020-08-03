@@ -28,10 +28,10 @@ bool IRReader::supportModel(std::istream& model) const {
 
 CNNNetwork IRReader::read(std::istream& model, const std::vector<IExtensionPtr>& exts) const {
     std::istringstream emptyStream;
-    return read(model, emptyStream, exts);
+    return read(model, nullptr, exts);
 }
-
-CNNNetwork IRReader::read(std::istream& model, std::istream& weights, const std::vector<IExtensionPtr>& exts) const {
+CNNNetwork IRReader::read(std::istream& model, const Blob::CPtr& weights, const std::vector<IExtensionPtr>& exts) const {
+    model.seekg(0, model.beg);
     pugi::xml_document xmlDoc;
     pugi::xml_parse_result res = xmlDoc.load(model);
     if (res.status != pugi::status_ok) {
