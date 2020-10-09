@@ -69,11 +69,34 @@ namespace ngraph
                     m_element_type = element_type;
                 }
 
+                void tmp_extend_shape_to_interval()
+                {
+                    if (get_partial_shape().rank().is_dynamic())
+                        return;
+                    if (m_tmp_orig_is_set)
+                        return;
+                    m_tmp_orig_partial_shape = m_partial_shape;
+                    m_tmp_orig_is_set = true;
+                    for (int64_t i = 0; i < m_partial_shape.rank().get_length(); ++i)
+                        m_partial_shape[i] = Dimension(0, m_partial_shape[i].get_max_length());
+                }
+
+                void tmp_restore_orig_shape()
+                {
+                    if (!m_tmp_orig_is_set)
+                        return;
+                    m_partial_shape = m_tmp_orig_partial_shape;
+                    m_tmp_orig_is_set = false;
+                }
+
             protected:
                 bool m_cacheable;
                 PartialShape m_partial_shape;
                 element::Type m_element_type;
                 bool m_is_relevant_to_shapes;
+                PartialShape
+                    m_tmp_orig_partial_shape; // for experiment: keep orig shape before overwrite
+                bool m_tmp_orig_is_set = false;
             };
         }
         using v0::Parameter;

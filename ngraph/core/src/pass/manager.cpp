@@ -15,6 +15,7 @@
 //*****************************************************************************
 
 #include <algorithm>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -36,11 +37,149 @@ using namespace ngraph;
 
 pass::Manager::Manager()
     : m_visualize(getenv_bool("NGRAPH_ENABLE_VISUALIZE_TRACING"))
+    , m_statistics(getenv_bool("NGRAPH_ENABLE_STATISTICS_TRACING"))
 {
 }
 
 pass::Manager::~Manager()
 {
+}
+
+struct OperationDescription
+{
+    // All non dynamic dimesions are all set to 1
+    typedef PartialShape DynamicMask;
+
+    std::string name;
+    int64_t version;
+    std::vector<DynamicMask> inputs;
+    std::vector<DynamicMask> outputs;
+
+    explicit OperationDescription(std::shared_ptr<Node> node)
+    {
+        name = node->get_type_info().name;
+        version = node->get_type_info().version;
+        create_mask(node->inputs(), inputs);
+        create_mask(node->outputs(), outputs);
+    }
+
+    template <typename T>
+    void create_mask(const std::vector<T>& ports, std::vector<DynamicMask>& dest)
+    {
+        dest.clear();
+        for (const auto& port : ports)
+        {
+            PartialShape shape = port.get_partial_shape();
+            if (!shape.rank().is_dynamic())
+            {
+                size_t rank = shape.rank().get_length();
+                for (size_t i = 0; i < rank; ++i)
+                {
+                    if (!shape[i].is_dynamic())
+                    {
+                        shape[i] = 1; // set all not dynamic dimensions to 1
+                    }
+                }
+            }
+            dest.push_back(shape);
+        }
+    }
+
+    static bool less(const std::vector<OperationDescription::DynamicMask>& x1,
+                     const std::vector<OperationDescription::DynamicMask>& x2)
+    {
+        if (x1.size() < x2.size())
+            return true;
+
+        if (x2.size() < x1.size())
+            return false;
+
+        for (size_t i = 0; i < x1.size(); ++i)
+        {
+            if (x1[i].is_dynamic() && !x2[i].is_dynamic())
+                return true;
+
+            if (!x1[i].is_dynamic() && x2[i].is_dynamic())
+                return false;
+            // if they both are dynamic or static, then they are equal
+        }
+
+        return false;
+    }
+
+    bool is_dynamic() const
+    {
+        auto has_dynamic = [](const PartialShape& shape) { return shape.is_dynamic(); };
+        return inputs.end() != std::find_if(inputs.begin(), inputs.end(), has_dynamic) ||
+               outputs.end() != std::find_if(outputs.begin(), outputs.end(), has_dynamic);
+    }
+};
+
+bool operator<(const OperationDescription& x1, const OperationDescription& x2)
+{
+    if (x1.name < x2.name)
+        return true;
+
+    if (x2.name < x1.name)
+        return false;
+
+    if (x1.version < x2.version)
+        return true;
+
+    if (x2.version < x1.version)
+        return false;
+
+    if (OperationDescription::less(x1.inputs, x2.inputs))
+        return true;
+    else if (OperationDescription::less(x2.inputs, x1.inputs))
+        return false;
+
+    if (OperationDescription::less(x1.outputs, x2.outputs))
+        return true;
+    else if (OperationDescription::less(x2.outputs, x1.outputs))
+        return false;
+
+    return false;
+}
+
+void print_partial_shape(std::ostream& out, const PartialShape& shape)
+{
+    if (shape.rank().is_dynamic())
+        out << '?';
+    else
+    {
+        out << '{';
+        size_t rank = shape.rank().get_length();
+        for (size_t i = 0; i < rank; ++i)
+        {
+            if (i > 0)
+                out << ", ";
+            if (shape[i].is_static())
+                out << 'S';
+            else
+                out << shape[i];
+        }
+        out << '}';
+    }
+}
+
+std::ostream& operator<<(std::ostream& out, const std::vector<PartialShape>& shapes)
+{
+    out << "(";
+    for (size_t i = 0; i < shapes.size(); ++i)
+    {
+        if (i > 0)
+            out << ", ";
+        print_partial_shape(out, shapes[i]);
+    }
+    out << ")";
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const OperationDescription& x)
+{
+    out << x.name << "-" << x.version << x.inputs << " --> " << x.outputs;
+    return out;
 }
 
 void pass::Manager::run_passes(shared_ptr<Function> func)
@@ -62,63 +201,80 @@ void pass::Manager::run_passes(shared_ptr<Function> func)
             pass->set_callback(m_transformation_callback);
         }
 
-        NGRAPH_SUPPRESS_DEPRECATED_START
-        if (auto matcher_pass = dynamic_pointer_cast<MatcherPass>(pass))
+        try
         {
-            // This checks is to skip the graph transformation when the graph pass relies on
-            // static shape but the function state is dynamic.
-            if (matcher_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) &&
-                func->is_dynamic())
+            NGRAPH_SUPPRESS_DEPRECATED_START
+            if (auto matcher_pass = dynamic_pointer_cast<MatcherPass>(pass))
             {
-                NGRAPH_DEBUG << "Pass " << pass->get_name() << " requires static shape but the "
-                             << "function is dynamic. Skipping this transformation";
-                continue;
-            }
-            // GraphRewrite is a temporary container for MatcherPass to make execution
-            // on on entire ngraph::Function
-            function_changed = GraphRewrite(matcher_pass).run_on_function(func);
-        }
-        else if (auto function_pass = dynamic_pointer_cast<FunctionPass>(pass))
-        {
-            // This checks is to skip the graph transformation when the graph pass relies on
-            // static shape but the function state is dynamic.
-            if (function_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) &&
-                func->is_dynamic())
-            {
-                NGRAPH_DEBUG << "Pass " << pass->get_name() << " requires static shape but the "
-                             << "function is dynamic. Skipping this transformation";
-                continue;
-            }
-
-            if (dynamic_pointer_cast<Validate>(pass))
-            {
-                if (function_changed)
+                // This checks is to skip the graph transformation when the graph pass relies on
+                // static shape but the function state is dynamic.
+                if (matcher_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) &&
+                    func->is_dynamic())
                 {
-                    function_pass->run_on_function(func);
-                    function_changed = false;
+                    NGRAPH_DEBUG << "Pass " << pass->get_name() << " requires static shape but the "
+                                 << "function is dynamic. Skipping this transformation";
+                    continue;
+                }
+                // GraphRewrite is a temporary container for MatcherPass to make execution
+                // on on entire ngraph::Function
+                function_changed = GraphRewrite(matcher_pass).run_on_function(func);
+            }
+            else if (auto function_pass = dynamic_pointer_cast<FunctionPass>(pass))
+            {
+                // This checks is to skip the graph transformation when the graph pass relies on
+                // static shape but the function state is dynamic.
+                if (function_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) &&
+                    func->is_dynamic())
+                {
+                    NGRAPH_DEBUG << "Pass " << pass->get_name() << " requires static shape but the "
+                                 << "function is dynamic. Skipping this transformation";
+                    continue;
+                }
+
+                if (dynamic_pointer_cast<Validate>(pass))
+                {
+                    if (function_changed)
+                    {
+                        function_pass->run_on_function(func);
+                        function_changed = false;
+                    }
+                }
+                else
+                {
+                    function_changed = function_pass->run_on_function(func);
                 }
             }
-            else
+            else if (auto node_pass = dynamic_pointer_cast<NodePass>(pass))
             {
-                function_changed = function_pass->run_on_function(func);
+                if (node_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) &&
+                    func->is_dynamic())
+                {
+                    NGRAPH_DEBUG << "Pass " << pass->get_name() << " requires static shape but the "
+                                 << "function is dynamic. Skipping this transformation";
+                    continue;
+                }
+                for (shared_ptr<Node> n : func->get_ops())
+                {
+                    function_changed |= node_pass->run_on_node(n);
+                }
             }
+            NGRAPH_SUPPRESS_DEPRECATED_END
         }
-        else if (auto node_pass = dynamic_pointer_cast<NodePass>(pass))
+        catch (const std::exception& e)
         {
-            if (node_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) && func->is_dynamic())
-            {
-                NGRAPH_DEBUG << "Pass " << pass->get_name() << " requires static shape but the "
-                             << "function is dynamic. Skipping this transformation";
-                continue;
-            }
-            for (shared_ptr<Node> n : func->get_ops())
-            {
-                function_changed |= node_pass->run_on_node(n);
-            }
+            std::cerr << "Exception std::exception thrown while executing transformation: "
+                      << pass->get_name() << "\n";
+            std::cerr << "Exception message: " << e.what() << "\n";
+            throw;
         }
-        NGRAPH_SUPPRESS_DEPRECATED_END
+        catch (...)
+        {
+            std::cerr << "Unknown exception thrown while executing transformation: "
+                      << pass->get_name() << "\n";
+            throw;
+        }
 
-        if (m_visualize)
+        if (m_visualize || m_statistics)
         {
             // visualizations and serializations will be named after the outermost function
             const size_t num_digits_in_pass_index = 3;
@@ -133,6 +289,22 @@ void pass::Manager::run_passes(shared_ptr<Function> func)
                 auto file_ext = format.empty() ? "svg" : format;
                 pass::VisualizeTree vt(base_filename + std::string(".") + file_ext);
                 vt.run_on_function(func);
+            }
+
+            if (m_statistics)
+            {
+                std::set<OperationDescription> operations;
+                for (auto& node : func->get_ops())
+                {
+                    OperationDescription od(node);
+                    if (od.is_dynamic())
+                        operations.insert(od);
+                }
+                std::ofstream list(base_filename + ".dynops.txt");
+                for (const auto& x : operations)
+                {
+                    list << x << std::endl;
+                }
             }
         }
         index++;
