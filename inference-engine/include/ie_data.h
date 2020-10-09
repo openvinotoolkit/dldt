@@ -91,6 +91,12 @@ public:
      */
     void reshape(const SizeVector& dims, Layout layout);
 
+    void reshape(const std::initializer_list<size_t>& dims, Layout layout) {
+        return reshape(SizeVector(dims), layout);
+    }
+
+    void reshape(const ngraph::PartialShape& shape, Layout a_layout);
+
     /**
      * @brief Gets the layout value for this Data instance
      */

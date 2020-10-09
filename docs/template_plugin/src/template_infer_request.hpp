@@ -46,6 +46,13 @@ public:
     void waitPipeline();
     void inferPostprocess();
 
+    void GetBlob(const char* name, InferenceEngine::Blob::Ptr& data) override;
+
+    void SetShape(const char* name, const InferenceEngine::SizeVector& dims) override {
+        // TODO: check partial shape compatibility
+        m_realShapes[name] = dims;
+    };
+
 private:
     void allocateDeviceBuffers();
     void allocateBlobs();

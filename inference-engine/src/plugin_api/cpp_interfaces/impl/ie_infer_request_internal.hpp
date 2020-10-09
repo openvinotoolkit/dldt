@@ -150,16 +150,18 @@ public:
                 data = it->second->getRoiBlob();
             } else {
                 data = _inputs[name];
+                const auto& dims = m_realShapes.find(name) != m_realShapes.end() ? m_realShapes.at(name) : foundInput->getTensorDesc().getDims();
                 checkBlob(data, name, true,
                     foundInput->getTensorDesc().getLayout() != SCALAR
-                    ? foundInput->getTensorDesc().getDims()
+                    ? dims
                     : oneVector);
             }
         } else {
             data = _outputs[name];
+            const auto& dims = m_realShapes.find(name) != m_realShapes.end() ? m_realShapes.at(name) : foundOutput->getTensorDesc().getDims();
             checkBlob(data, name, false,
                 foundOutput->getTensorDesc().getLayout() != SCALAR
-                ? foundOutput->getTensorDesc().getDims()
+                ? dims
                 : oneVector);
         }
     }
@@ -223,6 +225,12 @@ public:
         THROW_IE_EXCEPTION << "Dynamic batch is not supported";
     };
 
+    void SetShape(const char* name, const SizeVector& dims) override {
+        (void)name;
+        (void)dims;
+        THROW_IE_EXCEPTION << "Dynamic shape is not supported";
+    };
+
     /**
      * @brief Checks and executes input data pre-processing if needed.
      * @param inputs Inputs blobs to perform preprocessing on
@@ -247,6 +255,11 @@ protected:
     InferenceEngine::BlobMap _outputs;  //!< A map of network output blobs
     std::map<std::string, PreProcessDataPtr> _preProcData;  //!< A map of pre-process data per input
     int m_curBatch;  //!< Current batch value used in dynamic batching
+
+    // Shapes that set by real in
+    std::map<std::string, InferenceEngine::SizeVector>      m_realShapes;
+
+
 
     /**
      * @brief A shared pointer to ExecutableNetworkInternal interface
@@ -318,7 +331,7 @@ protected:
                 if (foundInputPair == std::end(_networkInputs)) {
                     THROW_IE_EXCEPTION << NOT_FOUND_str << "Failed to find input with name: \'" << name << "\'";
                 }
-                dims = foundInputPair->second->getTensorDesc().getDims();
+                dims = m_realShapes.find(name) != m_realShapes.end() ? m_realShapes.at(name) : foundInputPair->second->getTensorDesc().getDims();
                 refSize = foundInputPair->second->getTensorDesc().getLayout() != SCALAR
                     ? details::product(dims)
                     : 1;
@@ -330,7 +343,12 @@ protected:
                 if (foundOutputPair == std::end(_networkOutputs)) {
                     THROW_IE_EXCEPTION << NOT_FOUND_str << "Failed to find output with name: \'" << name << "\'";
                 }
-                dims = foundOutputPair->second->getTensorDesc().getDims();
+                if (foundOutputPair->second->getTensorDesc().getPartialShape().compatible(blob->getTensorDesc().getPartialShape())) {
+                    dims = blob->getTensorDesc().getDims();
+                } else {
+                    // TODO: it is strange to request tensor desc from data when the shapes are not compatible, probably we need to immediately throw here
+                    dims = foundOutputPair->second->getTensorDesc().getDims();
+                }
                 refSize = foundOutputPair->second->getTensorDesc().getLayout() != SCALAR
                     ? details::product(dims)
                     : 1;

@@ -177,6 +177,10 @@ public:
      * @return Enumeration of the resulted action: InferenceEngine::OK (0) for success
      */
     virtual InferenceEngine::StatusCode SetBatch(int batch_size, ResponseDesc* resp) noexcept = 0;
+
+    virtual InferenceEngine::StatusCode SetShape(const char* name, const SizeVector& dims, ResponseDesc* resp) noexcept {
+        return NOT_IMPLEMENTED;
+    }
 };
 
 }  // namespace InferenceEngine

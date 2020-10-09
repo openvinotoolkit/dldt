@@ -327,7 +327,7 @@ int main(int argc, char *argv[]) {
             next_step();
             batchSize = cnnNetwork.getBatchSize();
             // Parse input shapes if specified
-            InferenceEngine::ICNNNetwork::InputShapes shapes = cnnNetwork.getInputShapes();
+            InferenceEngine::ICNNNetwork::InputPartialShapes shapes = cnnNetwork.getInputPartialShapes();
             bool reshape = false;
             if (!FLAGS_shape.empty()) {
                 reshape |= updateShapes(shapes, FLAGS_shape, inputInfo);
@@ -358,6 +358,8 @@ int main(int argc, char *argv[]) {
                 if (isImage(item.second)) {
                     /** Set the precision of input data provided by the user, should be called before load of the network to the device **/
                     item.second->setPrecision(Precision::U8);
+                } else if (item.second->getPrecision() == Precision::I64) {
+                    item.second->setPrecision(Precision::I32);
                 }
             }
             // ----------------- 7. Loading the model to the device --------------------------------------------------------
@@ -468,7 +470,7 @@ int main(int argc, char *argv[]) {
 
         InferRequestsQueue inferRequestsQueue(exeNetwork, nireq);
         const InferenceEngine::ConstInputsDataMap info(exeNetwork.GetInputsInfo());
-        fillBlobs(inputFiles, batchSize, info, inferRequestsQueue.requests);
+        fillBlobs(inputFiles, batchSize, info, parseShapes(FLAGS_blob_shape), inferRequestsQueue.requests);
 
         // ----------------- 10. Measuring performance ------------------------------------------------------------------
         size_t progressCnt = 0;
@@ -573,6 +575,15 @@ int main(int argc, char *argv[]) {
 
         // wait the latest inference executions
         inferRequestsQueue.waitAll();
+
+        const auto outputs = exeNetwork.GetOutputsInfo();
+        // Touch all outputs
+        for (auto request : inferRequestsQueue.requests) {
+            for (auto output : outputs) {
+                auto outBlob = request->getBlob(output.first);
+                std::cout << "Acquired output blob " << output.first << " with shape: " << outBlob->getTensorDesc().getPartialShape() << '\n';
+            }
+        }
 
         double latency = getMedianValue<double>(inferRequestsQueue.getLatencies());
         double totalDuration = inferRequestsQueue.getDurationInMilliseconds();

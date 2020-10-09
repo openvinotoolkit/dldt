@@ -15,6 +15,7 @@
 //*****************************************************************************
 
 #include <fstream>
+#include <iterator>
 
 #include "ngraph/env_util.hpp"
 #include "ngraph/file_util.hpp"
