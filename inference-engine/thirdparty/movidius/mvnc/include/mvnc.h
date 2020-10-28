@@ -16,6 +16,7 @@ extern "C"
 #define NC_DEBUG_BUFFER_SIZE   120
 #define NC_MAX_DEVICES         (32)
 #define NC_MAX_NAME_SIZE       (64)
+#define NC_MAX_FIRMWARE_PATH   190
 
 #define NOMINMAX
 #define MVNC_EXPORT_API
@@ -165,7 +166,8 @@ typedef struct ncDeviceOpenParams {
     WatchdogHndl_t* watchdogHndl;
     int watchdogInterval;
     char memoryType;
-    const char* customFirmwareDirectory;
+    //const char* customFirmwareDirectory;
+    char customFirmwareDirectory[NC_MAX_FIRMWARE_PATH];
 } ncDeviceOpenParams_t;
 
 typedef enum {
@@ -206,7 +208,7 @@ MVNC_EXPORT_API ncStatus_t ncSetDeviceConnectTimeout(int deviceConnectTimeoutSec
  * @brief Create handle and open any free device
  * @param in_ncDeviceDesc a set of parameters that the device must comply with
  * @param watchdogInterval Time interval to ping device in milliseconds. 0 to disable watchdog.
- * @param customFirmwareDirectory Custom path to directory with firmware.
+ * @param customFirmwareDirectory Custom path to directory with firmware (in utf-8).
  *          If NULL or empty, default path searching behavior will be used.
  */
 MVNC_EXPORT_API ncStatus_t ncDeviceOpen(struct ncDeviceHandle_t **deviceHandlePtr,

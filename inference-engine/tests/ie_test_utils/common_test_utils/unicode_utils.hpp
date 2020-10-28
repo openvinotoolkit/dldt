@@ -72,14 +72,14 @@ static void removeFile(std::wstring path) {
 }
 
 static const std::vector<std::wstring> test_unicode_postfix_vector = {
-        L"unicode_Яㅎあ",
-        L"ひらがな日本語",
-        L"大家有天分",
-        L"עפצקרשתםןףץ",
-        L"ث خ ذ ض ظ غ",
-        L"그것이정당하다",
-        L"АБВГДЕЁЖЗИЙ",
-        L"СТУФХЦЧШЩЬЮЯ"
+        FileUtils::multiByteCharToWString("unicode_Яㅎあ"),
+        FileUtils::multiByteCharToWString("ひらがな日本語"),
+        FileUtils::multiByteCharToWString("大家有天分"),
+        FileUtils::multiByteCharToWString("עפצקרשתםןףץ"),
+        FileUtils::multiByteCharToWString("ث خ ذ ض ظ غ"),
+        FileUtils::multiByteCharToWString("그것이정당하다"),
+        FileUtils::multiByteCharToWString("АБВГДЕЁЖЗИЙ"),
+        FileUtils::multiByteCharToWString("СТУФХЦЧШЩЬЮЯ")
 };
 
 }  // namespace CommonTestUtils
