@@ -165,13 +165,6 @@ PyObject *parse_parameter(const InferenceEngine::Parameter &param) {
     }
 }
 
-InferenceEnginePython::IENetwork::IENetwork(const std::string &model, const std::string &weights) {
-    InferenceEngine::Core reader;
-    auto net = reader.ReadNetwork(model, weights);
-    actual = std::make_shared<InferenceEngine::CNNNetwork>(net);
-    name = actual->getName();
-    batch_size = actual->getBatchSize();
-}
 
 InferenceEnginePython::IENetwork::IENetwork(const std::shared_ptr<InferenceEngine::CNNNetwork> &cnn_network)
         : actual(cnn_network) {
@@ -241,15 +234,6 @@ const std::map <std::string, InferenceEngine::InputInfo::Ptr> InferenceEnginePyt
     return inputs;
 }
 
-const std::map <std::string, InferenceEngine::DataPtr> InferenceEnginePython::IENetwork::getInputs() {
-    std::map <std::string, InferenceEngine::DataPtr> inputs;
-    const InferenceEngine::InputsDataMap &inputsInfo = actual->getInputsInfo();
-    for (auto &in : inputsInfo) {
-        inputs[in.first] = in.second->getInputData();
-    }
-    return inputs;
-}
-
 const std::map <std::string, InferenceEngine::DataPtr> InferenceEnginePython::IENetwork::getOutputs() {
     std::map <std::string, InferenceEngine::DataPtr> outputs;
     const InferenceEngine::OutputsDataMap &outputsInfo = actual->getOutputsInfo();
@@ -310,17 +294,6 @@ PyObject *InferenceEnginePython::IEExecNetwork::getConfig(const std::string &nam
 void InferenceEnginePython::IEExecNetwork::exportNetwork(const std::string &model_file) {
     InferenceEngine::ResponseDesc response;
     IE_CHECK_CALL(actual->Export(model_file, &response));
-}
-
-std::map <std::string, InferenceEngine::DataPtr> InferenceEnginePython::IEExecNetwork::getInputs() {
-    InferenceEngine::ConstInputsDataMap inputsDataMap;
-    InferenceEngine::ResponseDesc response;
-    IE_CHECK_CALL(actual->GetInputsInfo(inputsDataMap, &response));
-    std::map <std::string, InferenceEngine::DataPtr> pyInputs;
-    for (const auto &item : inputsDataMap) {
-        pyInputs[item.first] = item.second->getInputData();
-    }
-    return pyInputs;
 }
 
 std::map <std::string, InferenceEngine::InputInfo::CPtr> InferenceEnginePython::IEExecNetwork::getInputsInfo() {
