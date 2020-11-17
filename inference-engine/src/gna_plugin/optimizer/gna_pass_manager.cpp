@@ -1233,10 +1233,10 @@ void EltwiseSplitOverChannelsPass::run() {
     }
 
     for (auto & l : *pLayers) {
-        if (!LayerInfo(l).isEltwise()) {
+        if (!LayerInfo(l).isEltwise() && !LayerInfo(l).isPower() && !LayerInfo(l).isRelu()) {
             continue;
         }
-        auto masterEltwise = std::dynamic_pointer_cast<EltwiseLayer>(l);
+        auto masterLayer = std::dynamic_pointer_cast<CNNLayer>(l);
         if (l->outData.size() != 1) {
             THROW_GNA_LAYER_EXCEPTION(l) << "number of outputs expected to be 1";
         }
@@ -1256,8 +1256,8 @@ void EltwiseSplitOverChannelsPass::run() {
         pass_trace() << "transforming " << LAYER_NAME(l) << " by splitting it to multiple eltwise operations\n";
         auto quantized = InferenceEngine::getInjectedData<QuantizedLayerParams>(l);
 
-        std::vector<CNNLayerPtr> splitLayers(2);
-        for (size_t kThEltwiseInput = 0; kThEltwiseInput != 2; kThEltwiseInput++) {
+        std::vector<CNNLayerPtr> splitLayers(l->insData.size());
+        for (size_t kThEltwiseInput = 0; kThEltwiseInput != l->insData.size(); kThEltwiseInput++) {
             // create split layer
             auto splitRaw = std::make_shared<SplitLayer>(
                     LayerParams{l->name + "/split/" + std::to_string(kThEltwiseInput), "Split", Precision::FP32});
@@ -1267,26 +1267,42 @@ void EltwiseSplitOverChannelsPass::run() {
             split->insData.push_back(l->insData[kThEltwiseInput]);
             auto inputDesc = l->insData[kThEltwiseInput].lock()->getTensorDesc();
             // need to split this desc
-            if (inputDesc.getLayout() != Layout::NC) {
-                THROW_GNA_LAYER_EXCEPTION(l)
-                << "cannot split over channel: input " << std::to_string(kThEltwiseInput)
-                << " layout need to be NC";
-            }
+            if (inputDesc.getLayout() == Layout::NC) {
+                // create split layer outputs
+                for (size_t i = 0;; i++) {
+                    auto elements_num = std::min(totalElementsForOutput - i * maxAffineElements,
+                                                 static_cast<size_t>(maxAffineElements));
 
-            // create split layer outputs
-            for (size_t i = 0;; i++) {
-                auto elements_num = std::min(totalElementsForOutput - i * maxAffineElements,
-                        static_cast<size_t>(maxAffineElements));
+                    SizeVector newDims = {1, elements_num};
+                    auto newDesc = TensorDesc(inputDesc.getPrecision(), newDims, inputDesc.getLayout());
+                    auto data = std::make_shared<Data>(l->name + "/" + std::to_string(kThEltwiseInput) + "/1", newDesc);
+                    getCreatorLayer(data) = split;
+                    split->outData.push_back(data);
 
-                SizeVector newDims = {1, elements_num};
-                auto newDesc = TensorDesc(inputDesc.getPrecision(), newDims, inputDesc.getLayout());
-                auto data = std::make_shared<Data>(l->name + "/" + std::to_string(kThEltwiseInput) + "/1", newDesc);
-                getCreatorLayer(data) = split;
-                split->outData.push_back(data);
-
-                if (elements_num != maxAffineElements) {
-                    break;
+                    if (elements_num != maxAffineElements) {
+                        break;
+                    }
                 }
+            } else if (inputDesc.getLayout() == Layout::CHW) {
+                for (size_t i = 0;; i++) {
+                    auto elements_num = std::min(totalElementsForOutput - i * maxAffineElements,
+                                                 static_cast<size_t>(maxAffineElements));
+                    auto channels = l->insData[kThEltwiseInput].lock()->getDims()[1];
+                    auto elements = elements_num / channels;
+                    SizeVector newDims = {1, channels, elements};
+                    auto newDesc = TensorDesc(inputDesc.getPrecision(), newDims, inputDesc.getLayout());
+                    auto data = std::make_shared<Data>(l->name + "/" + std::to_string(kThEltwiseInput) + "/1", newDesc);
+                    getCreatorLayer(data) = split;
+                    split->outData.push_back(data);
+
+                    if (elements_num != maxAffineElements) {
+                        break;
+                    }
+                }
+            } else {
+                THROW_GNA_LAYER_EXCEPTION(l)
+                        << "cannot split over channel: input " << std::to_string(kThEltwiseInput)
+                        << " layout need to be NC or CHW";
             }
             // replacing connection X->eltwise to X->split
             auto oData = CNNLayerFindOutData(l, kThEltwiseInput);
@@ -1298,33 +1314,82 @@ void EltwiseSplitOverChannelsPass::run() {
                 LayerParams{l->name + "/concat", "Concat", Precision::FP32});
         auto concat = quantized ? InferenceEngine::injectData<QuantizedLayerParams>(concatRaw) : concatRaw;
 
-        concat->outData.push_back(masterEltwise->outData.front());
-        getCreatorLayer(masterEltwise->outData.front()) = concat;
+        concat->outData.push_back(masterLayer->outData.front());
+        getCreatorLayer(masterLayer->outData.front()) = concat;
+
+        if (LayerInfo(l).isEltwise()) {
+            auto masterEltwise = std::dynamic_pointer_cast<EltwiseLayer>(l);
+            // create new eltwise layers - here 2 hardcode
+            for (size_t k = 0; k != totalSplits; k++) {
+                auto eltwiseRaw = std::make_shared<EltwiseLayer>(
+                        LayerParams{l->name + "/eltwise/" + std::to_string(k), "Eltwise", Precision::FP32});
+                IE_ASSERT(eltwiseRaw != nullptr);
+                eltwiseRaw->_operation = masterEltwise->_operation;
+                eltwiseRaw->coeff = masterEltwise->coeff;
+                auto eltwise = quantized ? InferenceEngine::injectData<QuantizedLayerParams>(eltwiseRaw) : eltwiseRaw;
 
 
-        // create new eltwise layers - here 2 hardcode
-        for (size_t k = 0; k != totalSplits; k++) {
-            auto eltwiseRaw = std::make_shared<EltwiseLayer>(
-                    LayerParams{l->name + "/eltwise/" + std::to_string(k), "Eltwise", Precision::FP32});
-            IE_ASSERT(eltwiseRaw != nullptr);
-            eltwiseRaw->_operation = masterEltwise->_operation;
-            eltwiseRaw->coeff = masterEltwise->coeff;
-            auto eltwise = quantized ? InferenceEngine::injectData<QuantizedLayerParams>(eltwiseRaw) : eltwiseRaw;
+                eltwise->insData.push_back(splitLayers[0]->outData[k]);
+                eltwise->insData.push_back(splitLayers[1]->outData[k]);
+                getInputTo(splitLayers[0]->outData[k])[eltwise->name] = eltwise;
+                getInputTo(splitLayers[1]->outData[k])[eltwise->name] = eltwise;
+
+                SizeVector newDims = splitLayers[1]->outData[k]->getDims();
+                auto newDesc = TensorDesc(splitLayers[1]->outData[k]->getPrecision(), newDims,
+                                          splitLayers[1]->outData[k]->getLayout());
+                auto data = std::make_shared<Data>(l->name + "/elwise/out/" + std::to_string(k), newDesc);
+                getCreatorLayer(data) = eltwise;
+                eltwise->outData.push_back(data);
+                getInputTo(data)[concat->name] = concat;
+                concat->insData.push_back(data);
+            }
+        } else if (LayerInfo(l).isPower()) {
+            auto masterPower = std::dynamic_pointer_cast<PowerLayer>(l);
+            for (size_t k = 0; k != totalSplits; k++) {
+                auto powerRaw = std::make_shared<PowerLayer>(
+                        LayerParams{l->name + "/power/" + std::to_string(k), "Power", Precision::FP32});
+                IE_ASSERT(powerRaw != nullptr);
+                powerRaw->power = masterPower->power;
+                powerRaw->scale = masterPower->scale;
+                powerRaw->offset = masterPower->offset;
+                auto power = quantized ? InferenceEngine::injectData<QuantizedLayerParams>(powerRaw) : powerRaw;
 
 
-            eltwise->insData.push_back(splitLayers[0]->outData[k]);
-            eltwise->insData.push_back(splitLayers[1]->outData[k]);
-            getInputTo(splitLayers[0]->outData[k])[eltwise->name] = eltwise;
-            getInputTo(splitLayers[1]->outData[k])[eltwise->name] = eltwise;
+                power->insData.push_back(splitLayers[0]->outData[k]);
+                getInputTo(splitLayers[0]->outData[k])[power->name] = power;
 
-            SizeVector newDims = splitLayers[1]->outData[k]->getDims();
-            auto newDesc = TensorDesc(splitLayers[1]->outData[k]->getPrecision(), newDims,
-                    splitLayers[1]->outData[k]->getLayout());
-            auto data = std::make_shared<Data>(l->name + "/elwise/out/" + std::to_string(k), newDesc);
-            getCreatorLayer(data) = eltwise;
-            eltwise->outData.push_back(data);
-            getInputTo(data)[concat->name] = concat;
-            concat->insData.push_back(data);
+                SizeVector newDims = splitLayers[0]->outData[k]->getDims();
+                auto newDesc = TensorDesc(splitLayers[0]->outData[k]->getPrecision(), newDims,
+                                          splitLayers[0]->outData[k]->getLayout());
+                auto data = std::make_shared<Data>(l->name + "/power/out/" + std::to_string(k), newDesc);
+                getCreatorLayer(data) = power;
+                power->outData.push_back(data);
+                getInputTo(data)[concat->name] = concat;
+                concat->insData.push_back(data);
+            }
+        } else if (LayerInfo(l).isRelu()) {
+            auto masterRelu = std::dynamic_pointer_cast<ReLULayer>(l);
+            for (size_t k = 0; k != totalSplits; k++) {
+                auto reluRaw = std::make_shared<ReLULayer>(
+                        LayerParams{l->name + "/relu/" + std::to_string(k), "Relu", Precision::FP32});
+                IE_ASSERT(reluRaw != nullptr);
+                reluRaw->negative_slope = masterRelu->negative_slope;
+
+                auto relu = quantized ? InferenceEngine::injectData<QuantizedLayerParams>(reluRaw) : reluRaw;
+
+
+                relu->insData.push_back(splitLayers[0]->outData[k]);
+                getInputTo(splitLayers[0]->outData[k])[relu->name] = relu;
+
+                SizeVector newDims = splitLayers[0]->outData[k]->getDims();
+                auto newDesc = TensorDesc(splitLayers[0]->outData[k]->getPrecision(), newDims,
+                                          splitLayers[0]->outData[k]->getLayout());
+                auto data = std::make_shared<Data>(l->name + "/relu/out/" + std::to_string(k), newDesc);
+                getCreatorLayer(data) = relu;
+                relu->outData.push_back(data);
+                getInputTo(data)[concat->name] = concat;
+                concat->insData.push_back(data);
+            }
         }
     }
 }
