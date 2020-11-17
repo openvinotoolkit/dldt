@@ -32,7 +32,7 @@ and release your contribution under these terms.
 * [Get Started with DockerHub CI for OpenVINO™ toolkit](https://github.com/openvinotoolkit/docker_ci/blob/master/README.md)
 
 ## How to Contribute
-See [CONTRIBUTING](./CONTRIBUTING.md) for contribution to the code.
+See [CONTRIBUTING](./CONTRIBUTING.md) for contribution to the code.  
 See [CONTRIBUTING_DOCS](./CONTRIBUTING_DOCS.md) for contribution to the documentation.
 Thank you!
 
