@@ -249,19 +249,30 @@ def emit_ir(graph: Graph, argv: argparse.Namespace):
 
     if not (argv.framework == 'tf' and argv.tensorflow_custom_operations_config_update):
         output_dir = argv.output_dir if argv.output_dir != '.' else os.getcwd()
-        print('\n[ SUCCESS ] Generated IR version {} model.'.format(get_ir_version(argv)))
-        print('[ SUCCESS ] XML file: {}.xml'.format(os.path.join(output_dir, argv.model_name)))
-        print('[ SUCCESS ] BIN file: {}.bin'.format(os.path.join(output_dir, argv.model_name)))
+
+        orig_model_name = os.path.join(output_dir, argv.model_name)
+        from openvino.inference_engine import IECore
+        from openvino.inference_engine.offline_api import ApplyMOCTransformations, ApplyMOCTransformationsCPU
+        ie = IECore()
+        net = ie.read_network(model=orig_model_name + ".xml", weights=orig_model_name + ".bin")
+        # ApplyMOCTransformations(net, True)
+        ApplyMOCTransformationsCPU(net)
+        net.serialize(orig_model_name + ".xml", orig_model_name + ".bin")
+
+        print('\n[ SUCCESS ] Serialize-Read-Serialize')
+        print('[ SUCCESS ] Generated IR version {} model.'.format(get_ir_version(argv)))
+        print('[ SUCCESS ] XML file: {}.xml'.format(orig_model_name))
+        print('[ SUCCESS ] BIN file: {}.bin'.format(orig_model_name))
 
     return 0
 
 
 def driver(argv: argparse.Namespace):
     init_logger(argv.log_level.upper(), argv.silent)
-
     start_time = datetime.datetime.now()
 
-    ret_res = emit_ir(prepare_ir(argv), argv)
+    from copy import deepcopy
+    ret_res = emit_ir(prepare_ir(deepcopy(argv)), argv)
 
     if ret_res != 0:
         return ret_res

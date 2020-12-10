@@ -24,10 +24,16 @@
 #include <ngraph/opsets/opset5.hpp>
 #include <ngraph/variant.hpp>
 
+#include <ngraph_ops/convolution_ie.hpp>
+#include <ngraph_ops/type_relaxed.hpp>
+#include <legacy/ngraph_ops/scaleshift.hpp>
+#include <legacy/ngraph_ops/fully_connected.hpp>
+
 #include <cpp/ie_cnn_network.h>
 #include "ie_blob_stream.hpp"
 #include "caseless.hpp"
 #include <ie_ngraph_utils.hpp>
+#include <ngraph_ops/deconvolution_ie.hpp>
 #include "generic_ie.hpp"
 #include "precision_utils.h"
 #include "blob_factory.hpp"
@@ -157,7 +163,60 @@ std::shared_ptr<ICNNNetwork> V10Parser::parse(const pugi::xml_node& root, const 
                 input_node->output(p_output.getRealOutputPortId(e.fromPortId));
         }
 
+        pugi::xml_node dn = p.xml.child("data");
+        ngraph::element::TypeVector in, out;
+        if (!dn.empty()) {
+            in = getParameters<ngraph::element::Type>(dn, "input_data_types", {});
+            out = getParameters<ngraph::element::Type>(dn, "output_data_types", {});
+            if (!in.empty()) {
+                for (size_t i = 0; i < inputs.size(); ++i) {
+                    if (i < in.size()) {
+                        inputs[i].get_tensor().set_element_type(in[i]);
+                    }
+                }
+            }
+        }
+
         auto node = createNode(inputs, p.xml, weights, p.params);
+
+        if (!in.empty() || !out.empty()) {
+            if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::Subtract>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::Subtract>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::Add>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::Add>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::Multiply>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::Multiply>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::Concat>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::Concat>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::FakeQuantize>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::FakeQuantize>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::Convolution>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::Convolution>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::GroupConvolution>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::GroupConvolution>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::MatMul>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::MatMul>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::PRelu>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::PRelu>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::Interpolate>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::Interpolate>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v4::Interpolate>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v4::Interpolate>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::AvgPool>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::AvgPool>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::Clamp>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::Clamp>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v0::ShapeOf>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v0::ShapeOf>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::Equal>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::Equal>>(*casted, in, out);
+            } else if (auto casted = std::dynamic_pointer_cast<ngraph::op::v1::Less>(node)) {
+                node = std::make_shared<ngraph::op::TypeRelaxed<ngraph::op::v1::Less>>(*casted, in, out);
+            } else {
+                std::cout << "Unsupported TypeRelaxed: " << node;
+            }
+        }
+        node->validate_and_infer_types();
         id_to_node[layer_id] = node;
 
         // Check that output shape after nGraph node validation the same as in IR
@@ -427,6 +486,10 @@ std::shared_ptr<ngraph::Node> V10Parser::createNode(const std::vector<ngraph::Ou
         std::make_shared<LayerCreator<ngraph::op::v1::LogicalOr>>("LogicalOr"),
         std::make_shared<LayerCreator<ngraph::op::v1::LogicalXor>>("LogicalXor"),
         std::make_shared<LayerCreator<ngraph::op::v1::LogicalNot>>("LogicalNot"),
+        std::make_shared<LayerCreator<ngraph::op::ConvolutionIE>>("ConvolutionIE"),
+        std::make_shared<LayerCreator<ngraph::op::DeconvolutionIE>>("DeconvolutionIE"),
+        std::make_shared<LayerCreator<ngraph::op::ScaleShiftIE>>("ScaleShiftIE"),
+        std::make_shared<LayerCreator<ngraph::op::FullyConnected>>("FullyConnected"),
     };
 
     // Check that operation in default opsets
@@ -449,7 +512,7 @@ std::shared_ptr<ngraph::Node> V10Parser::createNode(const std::vector<ngraph::Ou
     }
 
     std::shared_ptr<ngraph::Node> ngraphNode;
-    if (isDefaultOpSet(params.version)) {
+    if (true) { // isDefaultOpSet(params.version)) {
         // Try to create operation from creators
         for (const auto& creator : creators) {
             if (creator->shouldCreate(params.type)) {
@@ -1002,6 +1065,114 @@ std::shared_ptr<ngraph::Node> V10Parser::LayerCreator<ngraph::op::v1::BinaryConv
 
     return std::make_shared<ngraph::op::v1::BinaryConvolution>(inputs[0], inputs[1], strides, pads_begin, pads_end,
                                                                dilations, mode, pad_value, pad_type);
+}
+
+// ScaleShiftIE layer
+template <>
+std::shared_ptr<ngraph::Node> V10Parser::LayerCreator<ngraph::op::ScaleShiftIE>::createLayer(
+    const ngraph::OutputVector& inputs, const pugi::xml_node& node, const Blob::CPtr& weights,
+    const GenericLayerParams& layerParsePrms) {
+    checkParameters(inputs, layerParsePrms, 3);
+    return std::make_shared<ngraph::op::ScaleShiftIE>(inputs[0], inputs[1], inputs[2]);
+}
+
+// FullyConnected layer
+template <>
+std::shared_ptr<ngraph::Node> V10Parser::LayerCreator<ngraph::op::FullyConnected>::createLayer(
+        const ngraph::OutputVector& inputs, const pugi::xml_node& node, const Blob::CPtr& weights,
+        const GenericLayerParams& layerParsePrms) {
+    pugi::xml_node dn = node.child("data");
+
+    std::cout << "FC HERE\n" << std::endl;
+    if (dn.empty())
+        THROW_IE_EXCEPTION << "Cannot read parameter for " << getType() << " layer with name: " << layerParsePrms.name;
+
+    auto output_shape = ngraph::Shape(getParameters<size_t>(dn, "output_shape"));
+    auto output_type = details::convertPrecision(GetStrAttr(dn, "output_type", "undefined"));
+
+    return std::make_shared<ngraph::op::FullyConnected>(inputs[0], inputs[1], inputs[2], output_shape, output_type);
+}
+
+
+// DeconvolutionIE layer
+template <>
+std::shared_ptr<ngraph::Node> V10Parser::LayerCreator<ngraph::op::DeconvolutionIE>::createLayer(
+    const ngraph::OutputVector& inputs, const pugi::xml_node& node, const Blob::CPtr& weights,
+    const GenericLayerParams& layerParsePrms) {
+    pugi::xml_node dn = node.child("data");
+
+    if (dn.empty())
+        THROW_IE_EXCEPTION << "Cannot read parameter for " << getType() << " layer with name: " << layerParsePrms.name;
+
+    ngraph::op::PadType pad_type = ngraph::op::PadType::EXPLICIT;
+    std::string auto_pad = GetStrAttr(dn, "auto_pad", "");
+    if (auto_pad == "same_lower") {
+        pad_type = ngraph::op::PadType::SAME_LOWER;
+    } else if (auto_pad == "same_upper") {
+        pad_type = ngraph::op::PadType::SAME_UPPER;
+    } else if (auto_pad == "valid") {
+        pad_type = ngraph::op::PadType::VALID;
+    }
+
+    auto strides = ngraph::Strides(getParameters<size_t>(dn, "strides"));
+    auto dilations = ngraph::Strides(getParameters<size_t>(dn, "dilations"));
+    auto pads_begin = ngraph::CoordinateDiff(getParameters<std::ptrdiff_t>(dn, "pads_begin", {}));
+    auto pads_end = ngraph::CoordinateDiff(getParameters<std::ptrdiff_t>(dn, "pads_end", {}));
+    auto output_padding = ngraph::CoordinateDiff(getParameters<std::ptrdiff_t>(dn, "output_padding", {}));
+    size_t group = GetUIntAttr(dn, "group", 1);
+    bool has_output_shape = GetBoolAttr(dn, "has_output_shape");
+
+    size_t inputs_count = inputs.size();
+    std::shared_ptr<ngraph::Node> output_shape;
+    if (has_output_shape) {
+        --inputs_count;
+        output_shape = inputs.back().get_node_shared_ptr();
+    }
+
+    if (inputs_count == 2) {
+        return std::make_shared<ngraph::op::DeconvolutionIE>(inputs[0], inputs[1],
+                strides, dilations, pads_begin, pads_end, group, pad_type, output_padding, output_shape);
+    } else {
+        return std::make_shared<ngraph::op::DeconvolutionIE>(inputs[0], inputs[1], inputs[2],
+                strides, dilations, pads_begin, pads_end, group, pad_type, output_padding, output_shape);
+    }
+}
+
+// ConvolutionIE layer
+template <>
+std::shared_ptr<ngraph::Node> V10Parser::LayerCreator<ngraph::op::ConvolutionIE>::createLayer(
+        const ngraph::OutputVector& inputs, const pugi::xml_node& node, const Blob::CPtr& weights,
+        const GenericLayerParams& layerParsePrms) {
+//    checkParameters(inputs, layerParsePrms, 2);
+    pugi::xml_node dn = node.child("data");
+
+    if (dn.empty())
+        THROW_IE_EXCEPTION << "Cannot read parameter for " << getType() << " layer with name: " << layerParsePrms.name;
+
+    ngraph::op::PadType pad_type = ngraph::op::PadType::EXPLICIT;
+    std::string auto_pad = GetStrAttr(dn, "auto_pad", "");
+    if (auto_pad == "same_lower") {
+        pad_type = ngraph::op::PadType::SAME_LOWER;
+    } else if (auto_pad == "same_upper") {
+        pad_type = ngraph::op::PadType::SAME_UPPER;
+    } else if (auto_pad == "valid") {
+        pad_type = ngraph::op::PadType::VALID;
+    }
+
+    auto strides = ngraph::Strides(getParameters<size_t>(dn, "strides"));
+    auto dilations = ngraph::Strides(getParameters<size_t>(dn, "dilations"));
+    auto pads_begin = ngraph::CoordinateDiff(getParameters<std::ptrdiff_t>(dn, "pads_begin", {}));
+    auto pads_end = ngraph::CoordinateDiff(getParameters<std::ptrdiff_t>(dn, "pads_end", {}));
+    size_t group = GetUIntAttr(dn, "group", 1);
+    auto output_type = details::convertPrecision(GetStrAttr(dn, "output_type", "undefined"));
+
+    if (inputs.size() == 2) {
+        return std::make_shared<ngraph::op::ConvolutionIE>(inputs[0], inputs[1],
+                strides, dilations, pads_begin, pads_end, output_type, group, pad_type);
+    } else {
+        return std::make_shared<ngraph::op::ConvolutionIE>(inputs[0], inputs[1], inputs[2],
+                strides, dilations, pads_begin, pads_end, output_type, group, pad_type);
+    }
 }
 
 // GroupConvolution layer

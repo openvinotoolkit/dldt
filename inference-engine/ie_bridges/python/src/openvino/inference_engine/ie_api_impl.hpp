@@ -184,4 +184,5 @@ std::unique_ptr<T> make_unique(Args &&... args) {
 }
 
 std::string get_version();
+
 };  // namespace InferenceEnginePython

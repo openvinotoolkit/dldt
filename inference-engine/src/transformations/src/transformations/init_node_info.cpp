@@ -29,7 +29,7 @@ bool ngraph::pass::InitNodeInfo::run_on_function(std::shared_ptr<ngraph::Functio
             }
     };
 
-    for (auto & node : f->get_ops()) {
+    auto init_node = [this, &attributes, &update_attributes](std::shared_ptr<Node> node) {
         // Recursively apply transformation for sub-graph based operations
         if (auto sub_graph_node = std::dynamic_pointer_cast<op::util::SubGraphOp>(node)) {
             if (auto sub_graph = sub_graph_node->get_function()) {
@@ -56,6 +56,13 @@ bool ngraph::pass::InitNodeInfo::run_on_function(std::shared_ptr<ngraph::Functio
                 }
             }
         }
+    };
+
+    auto it = f->get_iterator();
+    while (it.get()) {
+        init_node(it.get());
+        it.next();
     }
+
     return false;
 }

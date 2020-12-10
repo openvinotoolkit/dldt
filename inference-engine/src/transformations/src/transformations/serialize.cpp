@@ -8,10 +8,12 @@
 #include <unordered_set>
 
 #include <ngraph/variant.hpp>
+#include <assert.h>
 #include "ngraph/ops.hpp"
 #include "ngraph/opsets/opset.hpp"
 #include "pugixml.hpp"
 #include "transformations/serialize.hpp"
+#include "ngraph_ops/type_relaxed.hpp"
 
 using namespace ngraph;
 
@@ -61,6 +63,10 @@ public:
 #if 0  // TODO: remove when Constant will support VisitorAPI
         m_data.append_attribute(name.c_str());
 #endif
+        if (auto a = ngraph::as_type<ngraph::AttributeAdapter<ngraph::element::TypeVector>>(&adapter)) {
+            auto values = a->get();
+            m_data.append_attribute(name.c_str()).set_value(joinVec(values).c_str());
+        }
     }
     void on_adapter(const std::string& name,
                     ngraph::ValueAccessor<bool>& adapter) override {
@@ -303,13 +309,9 @@ bool is_exec_graph(const ngraph::Function& f) {
 }
 
 bool resolve_dynamic_shapes(const ngraph::Function& f) {
-    const auto & f_ops = f.get_ordered_ops();
-    if (std::all_of(f_ops.begin(), f_ops.end(),
-            [](std::shared_ptr<Node> results) { return !results->is_dynamic(); })) {
-        return false;
-    }
-
     auto f_clone = ngraph::clone_function(f);
+
+    const auto & f_ops = f.get_ordered_ops();
     const auto & f_clone_ops = f_clone->get_ordered_ops();
     NGRAPH_CHECK(f_ops.size() == f_clone_ops.size(), "Unexpected get_ordered_ops method behaviour");
 
