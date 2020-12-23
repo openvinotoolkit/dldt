@@ -534,6 +534,13 @@ Program::Program(InferenceEngine::CNNNetwork& network, std::shared_ptr<const cld
     }
 }
 
+bool Program::isFirstOutput(const cldnn::primitive_id& outputID) const {
+    auto itr = outputInFirstPort.find(outputID);
+    if (itr == outputInFirstPort.end())
+        THROW_CLDNN_EXCEPTION("Unknown outputID: " + outputID);
+    return itr->second;
+}
+
 int Program::GetMaxBatchSizeForSingleProgram() {
     if (m_config.max_dynamic_batch > 1) {
         // calculate number of networks necessary based on binary log
@@ -5855,10 +5862,14 @@ void Program::AddOutputPrimitive(cldnn::topology& topology, std::string outputNa
     auto outputCreator = getCreatorLayer(outputData).lock();
     std::string outLayerName = layer_type_lower(outputCreator) + ":";
 
-    if (outputCreator->outData.size() > 1)
+    bool isFirstOutput = true;
+    if (outputCreator->outData.size() > 1) {
         outLayerName += outputName;
-    else
+        if (outputCreator->outData[0]->getName() != outputName)
+            isFirstOutput = false;
+    } else {
         outLayerName += outputCreator->name;
+    }
 
     auto outputReorderID = "reorder:" + outputName + m_postProcessTag;
     Precision precision = outputPrecision == Precision::UNSPECIFIED ? outputData->getPrecision() : outputPrecision;
@@ -5884,12 +5895,13 @@ void Program::AddOutputPrimitive(cldnn::topology& topology, std::string outputNa
     }
 
     topology.add(cldnn::reorder(outputReorderID, outputID,
-        FormatFromLayout(outputData->getLayout()),
-        DataTypeFromPrecision(precision)));
+                                FormatFromLayout(outputData->getLayout()),
+                                DataTypeFromPrecision(precision)));
     InitProfileInfo(outputReorderID, "reorder");
     primitiveIDs[outputReorderID] = outputReorderID;
     profilingIDs.push_back(outputReorderID);
     primitiveIDs[outputName] = outputReorderID;
+    outputInFirstPort[outputReorderID] = isFirstOutput;
 
     outputDims[outputName] = outputDesc.getDims();
     prevPrimitiveIDs[outputReorderID] = {outputName};
