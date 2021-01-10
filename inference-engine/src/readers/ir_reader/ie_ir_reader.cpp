@@ -15,7 +15,7 @@
 #include "ie_ir_parser.hpp"
 #include "ie_ir_itt.hpp"
 
-using namespace InferenceEngine;
+using namespace InferenceEngineIRReader;
 
 bool IRReader::supportModel(std::istream& model) const {
     OV_ITT_SCOPED_TASK(itt::domains::V10Reader, "IRReader::supportModel");
@@ -48,7 +48,7 @@ CNNNetwork IRReader::read(std::istream& model, const Blob::CPtr& weights, const 
     return CNNNetwork(parser.parse(root, weights));
 }
 
-INFERENCE_PLUGIN_API(StatusCode) InferenceEngine::CreateReader(IReader*& reader, ResponseDesc *resp) noexcept {
+INFERENCE_PLUGIN_API(StatusCode) CreateReader(IReader*& reader, ResponseDesc *resp) noexcept {
     try {
         reader = new IRReader();
         return OK;
@@ -57,3 +57,14 @@ INFERENCE_PLUGIN_API(StatusCode) InferenceEngine::CreateReader(IReader*& reader,
         return GENERAL_ERROR;
     }
 }
+
+#ifdef USE_STATIC_IE_PLUGINS
+#ifdef IR_READER_V10
+INFERENCE_PLUGIN_STATIC_API(StatusCode) InferenceEngineIRReaderV10_Create(IReader*& reader, ResponseDesc *resp)
+#else
+INFERENCE_PLUGIN_STATIC_API(StatusCode) InferenceEngineIRReaderV7_Create(IReader*& reader, ResponseDesc *resp)
+#endif
+{
+    return CreateReader(reader, resp);
+}
+#endif

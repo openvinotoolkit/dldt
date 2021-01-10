@@ -10,8 +10,9 @@
 #include <utility>
 
 #include "ie_cnn_net_reader_impl.h"
+#include "ie_ir_reader_namespace.hpp"
 
-namespace InferenceEngine {
+namespace InferenceEngineIRReader {
 
 namespace details {
 
@@ -276,5 +277,5 @@ CNNLayer::Ptr TILayerCreator::CreateLayer(pugi::xml_node& node, LayerParseParame
     return res;
 }
 
-}  // namespace details
-}  // namespace InferenceEngine
+} // namespace details
+} // namespace InferenceEngineIRReader

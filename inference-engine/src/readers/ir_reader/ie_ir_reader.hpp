@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "ie_ir_reader_namespace.hpp"
+
 namespace pugi {
 class xml_node;
 class xml_document;
@@ -25,7 +27,7 @@ namespace ngraph {
 class Function;
 }  // namespace ngraph
 
-namespace InferenceEngine {
+namespace InferenceEngineIRReader {
 
 /**
  * @brief This class is the main interface to build and parse a network from a given IR
@@ -64,4 +66,4 @@ public:
     }
 };
 
-}  // namespace InferenceEngine
+}  // namespace InferenceEngineIRReader

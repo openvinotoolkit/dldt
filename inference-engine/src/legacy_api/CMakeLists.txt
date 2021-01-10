@@ -49,9 +49,8 @@ target_include_directories(${TARGET_NAME}_obj PRIVATE
 
 target_compile_definitions(${TARGET_NAME}_obj PRIVATE $<TARGET_PROPERTY:ngraph::ngraph,INTERFACE_COMPILE_DEFINITIONS>)
 
-# Create shared library
-
-add_library(${TARGET_NAME} SHARED 
+# Create shared or static library
+add_library(${TARGET_NAME} 
     ${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp
     $<TARGET_OBJECTS:${TARGET_NAME}_obj>)
 

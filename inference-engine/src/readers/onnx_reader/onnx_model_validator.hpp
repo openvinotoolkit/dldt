@@ -6,7 +6,7 @@
 
 #include <istream>
 
-namespace InferenceEngine {
+namespace InferenceEngineONNXReader {
     // 2 empty structs used for tag dispatch below
     struct onnx_format {};
     struct prototxt_format {};
@@ -14,4 +14,4 @@ namespace InferenceEngine {
     bool is_valid_model(std::istream& model, onnx_format);
 
     bool is_valid_model(std::istream& model, prototxt_format);
-} // namespace InferenceEngine
+} // namespace InferenceEngineONNXReader

@@ -9,14 +9,18 @@
  */
 #pragma once
 
-#if defined(USE_STATIC_IE) || (defined(__GNUC__) && (__GNUC__ < 4))
+#ifdef __GNUC__
+# define INFERENCE_ENGINE_CDECL __attribute__((cdecl))
+# else
+# define INFERENCE_ENGINE_CDECL __cdecl
+#endif
+
+#if (!defined(__GNUC__) && defined(USE_STATIC_IE)) || (defined(__GNUC__) && (__GNUC__ < 4))
 # define INFERENCE_ENGINE_API(...) extern "C" __VA_ARGS__
 # define INFERENCE_ENGINE_API_CPP(...) __VA_ARGS__
 # define INFERENCE_ENGINE_API_CLASS(...) __VA_ARGS__
-# define INFERENCE_ENGINE_CDECL __attribute__((cdecl))
 #else
 # if defined(_WIN32)
-#  define INFERENCE_ENGINE_CDECL
 #  ifdef IMPLEMENT_INFERENCE_ENGINE_API
 #   define INFERENCE_ENGINE_API(...) extern "C" __declspec(dllexport) __VA_ARGS__ __cdecl
 #   define INFERENCE_ENGINE_API_CPP(...) __declspec(dllexport) __VA_ARGS__ __cdecl
@@ -27,7 +31,6 @@
 #   define INFERENCE_ENGINE_API_CLASS(...) __declspec(dllimport) __VA_ARGS__
 #  endif
 # else
-#  define INFERENCE_ENGINE_CDECL __attribute__((cdecl))
 #  define INFERENCE_ENGINE_API(...) extern "C" __attribute__((visibility("default"))) __VA_ARGS__
 #  define INFERENCE_ENGINE_API_CPP(...) __attribute__((visibility("default"))) __VA_ARGS__
 #  define INFERENCE_ENGINE_API_CLASS(...) __attribute__((visibility("default"))) __VA_ARGS__
@@ -104,6 +107,15 @@
  * @param type A plugin type
  */
 
+#if defined(__GNUC__ ) && (__GNUC__ >= 4)  // NOLINT
+#define INFERENCE_PLUGIN_STATIC_API(type) extern "C" __attribute__((visibility("default"))) type
+#else
+#define INFERENCE_PLUGIN_STATIC_API(type) extern "C" type
+#endif
+
+#ifdef USE_STATIC_IE_PLUGINS
+#define INFERENCE_PLUGIN_API(type) static type
+#else
 #if defined(_WIN32)
 # ifdef IMPLEMENT_INFERENCE_ENGINE_PLUGIN
 #  define INFERENCE_PLUGIN_API(type) extern "C" __declspec(dllexport) type
@@ -118,4 +130,5 @@
 # endif
 #else
 # define INFERENCE_PLUGIN_API(TYPE) extern "C" TYPE
+#endif
 #endif

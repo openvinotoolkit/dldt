@@ -19,11 +19,13 @@
 #include <legacy/ie_layers.h>
 #include "xml_parse_utils.h"
 
+#include "ie_ir_reader_namespace.hpp"
+
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-variable"
 #endif
 
-namespace InferenceEngine {
+namespace InferenceEngineIRReader {
 
 using namespace details;
 using std::map;
@@ -2349,4 +2351,4 @@ LayerValidators::LayerValidators() : _validators() {
     REG_LAYER_VALIDATOR_FOR_TYPE(ScatterElementsUpdateValidator, ScatterElementsUpdate);
 }
 
-}  // namespace InferenceEngine
+} // namespace InferenceEngineIRReader

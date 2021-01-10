@@ -23,7 +23,7 @@ source_group("src" FILES ${LIBRARY_SRC})
 source_group("include" FILES ${LIBRARY_HEADERS})
 
 # Create module library file from sources.
-add_library(${TARGET_NAME} MODULE
+add_library(${TARGET_NAME} ${IE_MODULE}
             ${LIBRARY_SRC}
             ${LIBRARY_HEADERS})
 

@@ -27,8 +27,19 @@ Usage: -DSELECTIVE_BUILD=ON -DSELECTIVE_BUILD_STAT=/path/*.csv" OFF
 
 ie_option(ENABLE_ERROR_HIGHLIGHT "Highlight errors and warnings during compile time" OFF)
 
+# Type of build, we add this as an explicit option to default it to ON
+# FIXME: Ah this moment setting this to OFF will only build ngraph a static library
+ie_option (BUILD_SHARED_LIBS "Build as a shared library" ON)
+
 #
 # Process options
 #
+if (BUILD_SHARED_LIBS)
+    set(IE_MODULE MODULE)
+    add_definitions(-DUSE_STATIC_IE)
+    add_definitions(-DUSE_STATIC_IE_PLUGINS)
+else()
+    set(IE_MODULE STATIC)
+endif()
 
 print_enabled_features()

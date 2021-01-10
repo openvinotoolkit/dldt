@@ -45,3 +45,30 @@ add_custom_target(ie_libraries ALL
 if(NGRAPH_ONNX_IMPORT_ENABLE)
     add_dependencies(ie_libraries inference_engine_onnx_reader)
 endif()
+
+if(NOT BUILD_SHARED_LIBS)
+    target_link_libraries(inference_engine PRIVATE inference_engine_ir_v7_reader inference_engine_ir_reader)
+
+    if(NGRAPH_ONNX_IMPORT_ENABLE)
+        target_compile_definitions(inference_engine PRIVATE NGRAPH_ONNX_IMPORT_ENABLE)
+        target_link_libraries(inference_engine PRIVATE inference_engine_onnx_reader)
+    endif()
+
+    if(ENABLE_MKL_DNN)
+        ieTargetLinkWholeArchiveEx(inference_engine PRIVATE MKLDNNPlugin)
+    endif()
+
+    if(ENABLE_CLDNN)
+        ieTargetLinkWholeArchiveEx(inference_engine PRIVATE clDNNPlugin)
+    endif()
+
+    if(ENABLE_VPU)
+        ieTargetLinkWholeArchiveEx(inference_engine PRIVATE myriadPlugin)
+    endif()
+
+    if(ENABLE_GNA)
+        ieTargetLinkWholeArchiveEx(inference_engine PRIVATE GNAPlugin)
+    endif()
+
+    ieTargetLinkWholeArchiveEx(inference_engine PRIVATE HeteroPlugin MultiDevicePlugin)
+endif()

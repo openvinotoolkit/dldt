@@ -6,7 +6,9 @@
 
 #include <ie_reader.hpp>
 
-namespace InferenceEngine {
+namespace InferenceEngineONNXReader {
+
+using namespace InferenceEngine;
 
 class ONNXReader: public IReader {
 public:
@@ -44,5 +46,4 @@ public:
     }
 };
 
-}  // namespace InferenceEngine
-
+}  // namespace InferenceEngineONNXReader

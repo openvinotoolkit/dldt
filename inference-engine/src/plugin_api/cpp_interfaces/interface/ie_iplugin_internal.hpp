@@ -276,12 +276,13 @@ public:
 }  // namespace InferenceEngine
 
 /**
- * @def IE_DEFINE_PLUGIN_CREATE_FUNCTION(PluginType, version)
- * @brief Defines the exported `CreatePluginEngine` function which is used to create a plugin instance
+ * @def IE_DEFINE_PLUGIN_CREATE_FUNCTION_CUSTOM(FunctionName, APIMacro, PluginType, version)
+ * @brief Defines the exported `FunctionName` function which is used to create a plugin instance
+ *        using specified APIMacro (for instance INFERENCE_PLUGIN_API)
  * @ingroup ie_dev_api_plugin_api
  */
-#define IE_DEFINE_PLUGIN_CREATE_FUNCTION(PluginType, version, ...)                                          \
-    INFERENCE_PLUGIN_API(InferenceEngine::StatusCode) CreatePluginEngine(                                   \
+#define IE_DEFINE_PLUGIN_CREATE_FUNCTION_CUSTOM(FunctionName, PluginType, version, ...)                     \
+    INFERENCE_PLUGIN_API(InferenceEngine::StatusCode) FunctionName(                                         \
             InferenceEngine::IInferencePlugin *&plugin,                                                     \
             InferenceEngine::ResponseDesc *resp) noexcept {                                                 \
         try {                                                                                               \
@@ -293,3 +294,43 @@ public:
             return InferenceEngine::DescriptionBuffer(InferenceEngine::GENERAL_ERROR, resp) << ex.what();   \
         }                                                                                                   \
     }
+
+#ifdef USE_STATIC_IE_PLUGINS
+
+namespace InferenceEngine {
+
+using IEPluginFactory = StatusCode(*)(IInferencePlugin*&, ResponseDesc*);
+INFERENCE_ENGINE_API_CPP(StatusCode) InferencePluginRegisterStaticFactory(std::string const & deviceName, IEPluginFactory factory);
+
+} // namespace InferenceEngine
+
+#define IE_REGISTER_STATIC_PLUGIN(deviceName, factory)                                      \
+    static struct factory##Registrar                                                        \
+    {                                                                                       \
+        factory##Registrar() { InferenceEngine::InferencePluginRegisterStaticFactory(deviceName, factory); } \
+    } factory##Registrar##Instance;
+
+#endif
+
+/**
+ * @def IE_DEFINE_PLUGIN_CREATE_FUNCTION(PluginType, version)
+ * @brief Defines the exported `CreatePluginEngine` function which is used to create a plugin instance
+ * @ingroup ie_dev_api_plugin_api
+ */
+#define IE_DEFINE_PLUGIN_CREATE_FUNCTION(PluginType, version, ...)  \
+    IE_DEFINE_PLUGIN_CREATE_FUNCTION_CUSTOM(CreatePluginEngine, PluginType, version, __VA_ARGS__)
+
+/**
+ * @def IE_DEFINE_PLUGIN_CREATE_FUNCTION(deviceName, PluginType, version)
+ * @brief Defines the exported `CreatePluginEngine` function which is used to create a plugin instance
+ *        If static IE extensions are enabled, registers this as the default plugin for the specified deviceName.
+ * @ingroup ie_dev_api_plugin_api
+ */
+#ifdef USE_STATIC_IE_PLUGINS
+#define IE_DEFINE_PLUGIN_CREATE_FUNCTION_EX(deviceName, PluginType, version, ...)  \
+    IE_DEFINE_PLUGIN_CREATE_FUNCTION(PluginType, version, __VA_ARGS__) \
+    IE_REGISTER_STATIC_PLUGIN(#deviceName, CreatePluginEngine)
+#else
+#define IE_DEFINE_PLUGIN_CREATE_FUNCTION_EX(deviceName, PluginType, version, ...)  \
+    IE_DEFINE_PLUGIN_CREATE_FUNCTION(PluginType, version, __VA_ARGS__)
+#endif

@@ -51,7 +51,7 @@ set (SRC
 
 disable_deprecated_warnings()
 
-add_library(ngraph_backend SHARED ${SRC})
+add_library(ngraph_backend ${SRC})
 
 if(COMMAND ie_faster_build)
     ie_faster_build(ngraph_backend
@@ -80,3 +80,8 @@ target_include_directories(ngraph_backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(interpreter)
 add_subdirectory(ie)
+
+if (NOT BUILD_SHARED_LIBS)
+    # In static mode we link plugins explicitely
+    target_link_libraries(ngraph_backend PRIVATE ie_backend interpreter_backend)
+endif()

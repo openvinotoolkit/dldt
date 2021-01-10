@@ -96,6 +96,13 @@ ie_option (USE_SYSTEM_PUGIXML "use the system copy of pugixml" OFF)
 #
 # Process featues
 #
+if ((NOT DEFINED BUILD_SHARED_LIBS) OR BUILD_SHARED_LIBS)
+    set(IE_MODULE MODULE)
+    add_definitions(-DUSE_STATIC_IE)
+    add_definitions(-DUSE_STATIC_IE_PLUGINS)
+else()
+    set(IE_MODULE STATIC)
+endif()
 
 if (ENABLE_PROFILING_RAW)
     add_definitions(-DENABLE_PROFILING_RAW=1)

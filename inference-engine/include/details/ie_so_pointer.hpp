@@ -23,6 +23,32 @@ namespace InferenceEngine {
 namespace details {
 
 /**
+ * @brief This function instantiate a plugin object from a factory function.
+ * @factory Function that creates the object. See FACTORY default argument for appropriate prototype.
+ * @return Object returned by the factory, will throw exception if creation failed.
+ */
+template <typename T, typename FACTORY = std::function<StatusCode(T*&, ResponseDesc*)> >
+static inline T* InstantiatePluginObject(FACTORY && factory) {
+    T* instance;
+    ResponseDesc desc;
+    StatusCode sts = factory(instance, &desc);
+    if (sts != OK) {
+        THROW_IE_EXCEPTION << desc.msg;
+    }
+    return instance;
+}
+
+/**
+ * @brief This function instantiate a plugin object from a factory function.
+ * @factory Function that creates the object. See FACTORY default argument for appropriate prototype.
+ * @return shared_ptr returned by the factory, will throw exception if creation failed.
+ */
+template <typename T, typename FACTORY = std::function<StatusCode(T*&, ResponseDesc*)> >
+static inline std::shared_ptr<T> InstantiatePluginSharedPtr(FACTORY && factory) {
+    return details::shared_from_irelease(InstantiatePluginObject<T>(std::forward<FACTORY>(factory)));
+}
+
+/**
  * @brief This class is a C++ helper to load a symbol from a library and create its instance
  */
 template <class Loader>
@@ -48,13 +74,7 @@ public:
      */
     template <class T>
     T* instantiateSymbol(const std::string& name) const {
-        T* instance = nullptr;
-        ResponseDesc desc;
-        StatusCode sts = bind_function<StatusCode(T*&, ResponseDesc*)>(name)(instance, &desc);
-        if (sts != OK) {
-            THROW_IE_EXCEPTION << desc.msg;
-        }
-        return instance;
+        return InstantiatePluginObject<T>(bind_function<StatusCode(T*&, ResponseDesc*)>(name));
     }
 
 private:
@@ -124,7 +144,7 @@ public:
      * @brief Constructs an object with existing reference
      * @param pointedObj Existing reference to wrap
      */
-    explicit SOPointer(T* pointedObj): _so_loader(), _pointedObj(pointedObj) {
+    explicit SOPointer(std::shared_ptr<T> pointedObj): _so_loader(), _pointedObj(pointedObj) {
         if (_pointedObj == nullptr) {
             THROW_IE_EXCEPTION << "Cannot create SOPointer<T, Loader> from nullptr";
         }
@@ -169,7 +189,7 @@ public:
     }
 
     explicit operator bool() const noexcept {
-        return (nullptr != _so_loader) && (nullptr != _pointedObj);
+        return (nullptr != _pointedObj);
     }
 
     friend bool operator==(std::nullptr_t, const SOPointer& ptr) noexcept {

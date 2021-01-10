@@ -14,7 +14,7 @@ source_group("src" FILES ${LIBRARY_SRC})
 
 # Create module library
 
-add_library(${TARGET_NAME} MODULE ${LIBRARY_SRC})
+add_library(${TARGET_NAME} ${IE_MODULE} ${LIBRARY_SRC})
 
 ie_add_vs_version_file(NAME ${TARGET_NAME}
                        FILEDESCRIPTION "Inference Engine ONNX reader plugin")
