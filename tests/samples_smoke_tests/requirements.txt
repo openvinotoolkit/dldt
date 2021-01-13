@@ -1,7 +1,11 @@
+pyyaml
+setuptools
+wheel
 test-generator
 numpy
+pytest
+scikit-build
 opencv-python
 progress
 nibabel
-pytest
 scipy

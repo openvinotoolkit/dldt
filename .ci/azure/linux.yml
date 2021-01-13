@@ -188,6 +188,24 @@ jobs:
     continueOnError: false
 
   - script: |
+      wget -P tests/samples_smoke_tests/ https://d30ikxcvcet9xo.cloudfront.net/repositories/openvino/ci_dependencies/test/samples_smoke_tests_data.zip     
+      python3 -m pip install  --upgrade pip
+      sudo apt-get install -y python3-pytest python3-setuptools
+      python3 -m pip install -r $(REPO_DIR)/tests/samples_smoke_tests/requirements.txt
+      unzip tests/samples_smoke_tests/samples_smoke_tests_data.zip  -d tests/samples_smoke_tests/
+      export IE_APP_PATH=$(BIN_DIR)
+      export IE_APP_PYTHON_PATH=$(REPO_DIR)/inference-engine/ie_bridges/python/sample/
+      export PYTHONPATH=$(REPO_DIR)/model-optimizer/:$(REPO_DIR)/tests/samples_smoke_tests/:$(BIN_DIR)/lib/python_api/python3.6/:$(REPO_DIR)/ngraph/python/src/
+      export LD_LIBRARY_PATH=$(BIN_DIR)/lib:$(REPO_DIR)/inference-engine/temp/opencv_4.5.1_ubuntu18/opencv/lib/:$(REPO_DIR)/inference-engine/temp/tbb/lib
+      export SHARE=$(REPO_DIR)/tests/samples_smoke_tests/samples_smoke_tests_data/
+      export WORKSPACE=$(REPO_DIR)
+      export IE_APP_PYTHON_TOOL_PATH=$(REPO_DIR)/inference-engine/tools/
+      python3 -m pytest $(REPO_DIR)/tests/samples_smoke_tests/  --env_conf $(REPO_DIR)/tests/samples_smoke_tests/env_config.yml -s --junitxml=$(BUILD_DIR)/TEST-SamplesSmokeTests.xml
+    workingDirectory: $(REPO_DIR)
+    displayName: 'SamplesSmokeTests'
+    continueOnError: false
+
+  - script: |
       export DATA_PATH=$(MODELS_PATH)
       export MODELS_PATH=$(MODELS_PATH)
       export LD_LIBRARY_PATH=$(BIN_DIR)/lib

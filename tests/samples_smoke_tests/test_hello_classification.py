@@ -76,6 +76,9 @@ class TestHello(SamplesCommonTestClass):
         Check UNICODE characters in paths.
         """
         #  Make temporary dirs, prepare temporary input data and temporary model
+        if sys.platform.startswith("win") and param.get('sample_type') == "C":
+            pytest.skip("C sample doesn't support unicode paths on Windows")
+
         tmp_dir_path = Path(os.path.join(os.environ.get('WORKSPACE'), f"tmp_dir_for_{self.sample_name}"))
         tmp_image_dir = tmp_dir_path / 'image'
         tmp_model_dir = tmp_dir_path / 'model'

@@ -71,7 +71,7 @@ def parse_hello_reshape_ssd(stdout):
                           '(Example: [33,59] element, prob = 0.963015, bbox = (189.776,110.933)-(309.288,306.952), '
                           'batch id = 0)'.format(line))
         elif 'was saved' in line:
-            path_result = line.split(' ')[-1]
+            path_result = os.path.join(os.getcwd(), line.split(' ')[-1].strip())
             if not os.path.isfile(path_result):
                 log.error("Image after infer was not found: {}".format(path_result))
                 is_ok = False

@@ -28,7 +28,7 @@ test_data_ssd_person_and_bicycles_detection_fp32 = \
                                 os.path.join('FP32', 'pedestrian-and-vehicle-detector-adas-0001.xml')],
                           'batch': [1],
                           'd': ['CPU'],
-                          'sample_type': ['C++', 'C', 'Python']},
+                          'sample_type': ['C++', 'C']},
               use_device=['d']
               )
 
@@ -37,7 +37,7 @@ test_data_ssd_person_and_bicycles_detection_vehicle_fp32 = \
                           'm': [os.path.join('FP32', 'vehicle-detection-adas-0002.xml')],
                           'batch': [1],
                           'd': ['CPU'],
-                          'sample_type': ['C++', 'C', 'Python']},
+                          'sample_type': ['C++', 'C']},
               use_device=['d']
               )
 

@@ -133,7 +133,10 @@ class SamplesCommonTestClass():
         is_windows = sys.platform.startswith('win')
         if 'python' in sample_type.lower():
             executable_path += '.py'
-            executable_path = 'python3 ' + executable_path
+            if is_windows: 
+                executable_path = 'python ' + executable_path
+            else:
+                executable_path = 'python3 ' + executable_path
         elif 'c' in sample_type.lower() and not 'c++' in sample_type.lower():
             executable_path += '_c'
         if is_windows and not 'python' in sample_type.lower():

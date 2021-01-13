@@ -27,8 +27,8 @@ test_data_nthreads = get_tests(cmd_params={'i': [os.path.join('ark', 'dev93_10.a
                                            'r': [os.path.join('ark', 'dev93_scores_10.ark')],
                                            'qb': [8, 16],
                                            'nthreads': [1],
-                                           'd': ['CPU']},
-                               use_device=['d']
+                                           'd': ['GNA_SW']},
+                               use_device=False
                                )
 
 test_data_nthreads_negative = get_tests(cmd_params={'i': [os.path.join('ark', 'dev93_10.ark')],
@@ -38,8 +38,8 @@ test_data_nthreads_negative = get_tests(cmd_params={'i': [os.path.join('ark', 'd
                                                     'r': [os.path.join('ark', 'dev93_scores_10.ark')],
                                                     'qb': [8],
                                                     'nthreads': [0, -2],
-                                                    'd': ['CPU']},
-                                        use_device=['d']
+                                                    'd': ['GNA_SW']},
+                                        use_device=False
                                         )
 
 
@@ -52,6 +52,8 @@ class TestSpeechSample(SamplesCommonTestClass):
 
     @pytest.mark.parametrize("param", test_data_nthreads)
     def test_speech_sample_nthreads(self, param):
+        if sys.platform.startswith("win"):
+            pytest.skip("C sample doesn't support unicode paths on Windows")
         stdout = self._test(param).split('\n')
         assert os.path.isfile(param['o']), "Ark file after infer was not found"
 
