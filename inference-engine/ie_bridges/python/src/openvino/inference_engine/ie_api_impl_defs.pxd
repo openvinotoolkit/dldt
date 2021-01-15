@@ -157,7 +157,6 @@ cdef extern from "ie_api_impl.hpp" namespace "InferenceEnginePython":
     cdef cppclass IENetwork:
         IENetwork() except +
         IENetwork(object) except +
-        IENetwork(const string &, const string &) except +
         string name
         size_t batch_size
         string precision
