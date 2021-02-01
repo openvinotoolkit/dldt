@@ -1,5 +1,5 @@
 """
- Copyright (C) 2018-2020 Intel Corporation
+ Copyright (C) 2018-2021 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,13 +14,15 @@
  limitations under the License.
 """
 
-from mo.front.common.partial_infer.concat import tf_pack_infer
+from extensions.ops.RandomUniform import RandomUniform
+from mo.front.extractor import FrontExtractorOp
 
 
-def tf_pack_ext(pb):
-    assert (pb.attr["N"].i == len(pb.input))
-    return {
-        'axis': pb.attr["axis"].i,
-        'N': pb.attr["N"].i,
-        'infer': tf_pack_infer
-    }
+class RandomUniformExtractor(FrontExtractorOp):
+    op = 'RandomUniform'
+    enabled = True
+
+    @classmethod
+    def extract(cls, node):
+        RandomUniform.update_node_stat(node)
+        return cls.enabled

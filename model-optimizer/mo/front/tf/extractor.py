@@ -1,5 +1,5 @@
 """
- Copyright (C) 2018-2020 Intel Corporation
+ Copyright (C) 2018-2021 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,11 +14,7 @@
  limitations under the License.
 """
 
-from mo.front.tf.extractors.concat import tf_concat_ext
-from mo.front.tf.extractors.fused_bn import tf_fused_bn_extractor
 from mo.front.tf.extractors.native_tf import native_tf_node_extractor
-from mo.front.tf.extractors.pack import tf_pack_ext
-from mo.front.tf.extractors.random_uniform import tf_random_uniform_ext
 from mo.front.tf.extractors.utils import get_tf_node_port
 from mo.graph.graph import Node
 
@@ -57,12 +53,6 @@ def node_pb_arg(pb_extractor: callable):
 
 tf_op_extractors = {
     'TFCustomSubgraphCall': node_pb_arg(lambda pb: None),
-    'FusedBatchNorm': node_pb_arg(tf_fused_bn_extractor),
-    'FusedBatchNormV2': node_pb_arg(tf_fused_bn_extractor),
-    'FusedBatchNormV3': node_pb_arg(tf_fused_bn_extractor),
-    'ConcatV2': node_pb_arg(tf_concat_ext),
-    'Pack': node_pb_arg(tf_pack_ext),
-    'RandomUniform': node_pb_arg(tf_random_uniform_ext),
 }
 
 

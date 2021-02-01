@@ -365,6 +365,7 @@ extensions/front/tf/bucketize_ext.py
 extensions/front/tf/Cast_ext.py
 extensions/front/tf/concat.py
 extensions/front/tf/concat_ext.py
+extensions/front/tf/concat_v2_ext.py
 extensions/front/tf/const_ext.py
 extensions/front/tf/conv_ext.py
 extensions/front/tf/crop_and_resize_ext.py
@@ -397,6 +398,7 @@ extensions/front/tf/fill_ext.py
 extensions/front/tf/FlattenToReshape.py
 extensions/front/tf/floor_div_decomposition.py
 extensions/front/tf/floor_ext.py
+extensions/front/tf/fused_bn_ext.py
 extensions/front/tf/gather_ext.py
 extensions/front/tf/gathernd_ext.py
 extensions/front/tf/GatherTree_ext.py
@@ -427,12 +429,14 @@ extensions/front/tf/non_max_suppression_normalize.py
 extensions/front/tf/noop.py
 extensions/front/tf/ObjectDetectionAPI.py
 extensions/front/tf/one_hot_ext.py
+extensions/front/tf/pack_ext.py
 extensions/front/tf/pad_ext.py
 extensions/front/tf/pad_tf_to_pad.py
 extensions/front/tf/placeholder_ext.py
 extensions/front/tf/placeholder_with_default_ext.py
 extensions/front/tf/pooling_ext.py
 extensions/front/tf/prelu.py
+extensions/front/tf/random_uniform_ext.py
 extensions/front/tf/range_ext.py
 extensions/front/tf/reduce_ext.py
 extensions/front/tf/reshape_related_ext.py
@@ -543,7 +547,6 @@ extensions/middle/DilatedConvolution.py
 extensions/middle/EltwiseChecker.py
 extensions/middle/EltwiseInputReshape.py
 extensions/middle/FakeSplitOutputs.py
-extensions/middle/FusedBatchNormNonConstant.py
 extensions/middle/FusedBatchNormTraining.py
 extensions/middle/FuseReshapesSequence.py
 extensions/middle/fusings.py
@@ -616,6 +619,8 @@ extensions/ops/assert_op.py
 extensions/ops/aten.py
 extensions/ops/axpy.py
 extensions/ops/BatchNormInference.py
+extensions/ops/BatchNormInferenceMultipleOutputs.py
+extensions/ops/BatchNormTraining.py
 extensions/ops/binarization.py
 extensions/ops/BlockLSTM.py
 extensions/ops/box_nms.py
@@ -683,6 +688,7 @@ extensions/ops/proposal_onnx.py
 extensions/ops/proposal_python_example.py
 extensions/ops/psroipooling.py
 extensions/ops/quantize_linear.py
+extensions/ops/RandomUniform.py
 extensions/ops/range.py
 extensions/ops/rank.py
 extensions/ops/ReduceOps.py
@@ -866,12 +872,7 @@ mo/front/tf/common.py
 mo/front/tf/custom_subgraph_call.py
 mo/front/tf/extractor.py
 mo/front/tf/extractors/__init__.py
-mo/front/tf/extractors/concat.py
-mo/front/tf/extractors/fused_bn.py
-mo/front/tf/extractors/identity.py
 mo/front/tf/extractors/native_tf.py
-mo/front/tf/extractors/pack.py
-mo/front/tf/extractors/random_uniform.py
 mo/front/tf/extractors/strided_slice.py
 mo/front/tf/extractors/utils.py
 mo/front/tf/graph_utils.py

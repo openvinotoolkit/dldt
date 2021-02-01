@@ -1,5 +1,5 @@
 """
- Copyright (C) 2018-2020 Intel Corporation
+ Copyright (C) 2018-2021 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ from mo.ops.op import PermuteAttrs
 
 
 def concat_infer(node):
-    if not node.has('axis'):
+    if not node.has('axis') or node.axis is None:
         N = node.N
         axis_input = node.in_node(N)
         if axis_input.has_valid('value') and axis_input.value.size == 1:

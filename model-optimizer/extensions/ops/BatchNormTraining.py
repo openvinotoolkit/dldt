@@ -14,16 +14,17 @@
  limitations under the License.
 """
 
+from mo.front.common.partial_infer.utils import int64_array
 from mo.graph.graph import Graph
 from mo.ops.op import Op
 
 
-class BatchNormInference(Op):
+class BatchNormTraining(Op):
     """
-    BatchNormInference will be replaced by BNToScaleShift FrontReplacer for Caffe or convert_batch_norm 
-    function for other frameworks
+    BatchNormInference will be replaced by BatchNormInference(or BatchNormInferenceMO) after FusedBatchNormTraining
+    transformation
     """
-    op = 'BatchNormInference'
+    op = 'BatchNormTraining'
     enabled = False
 
     def __init__(self, graph: Graph, attrs: dict):
@@ -37,4 +38,6 @@ class BatchNormInference(Op):
 
     @staticmethod
     def infer(node):
-        node.out_port(0).data.set_shape(node.in_port(0).data.get_shape())
+        output_shape = int64_array(node.in_node(0).shape)
+        for out_port in node.out_ports().values():
+            out_port.data.set_shape(output_shape)

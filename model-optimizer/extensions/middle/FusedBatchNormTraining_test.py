@@ -1,5 +1,5 @@
 """
- Copyright (C) 2018-2020 Intel Corporation
+ Copyright (C) 2018-2021 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 import unittest
 
 import numpy as np
-from generator import generator, generate
+from generator import generator
 
 from extensions.middle.FusedBatchNormTraining import FusedBatchNormTraining
 from mo.front.common.partial_infer.utils import int64_array
@@ -46,8 +46,12 @@ nodes_attributes = {
     'variance': {'value': None, 'shape': int64_array([]), 'kind': 'op', 'op': 'Const'},
     'variance_data': {'value': None, 'shape': int64_array([]), 'kind': 'data'},
 
+    'batchnorm_train': {'value': None, 'shape': int64_array([3, 10, 11, 5]), 'type': None, 'kind': 'op',
+                        'op': 'BatchNormTraining', 'eps': 1e-3},
+    'batchnorm_train_data': {'value': None, 'shape': int64_array([3, 10, 11, 5]), 'kind': 'data'},
+
     'batchnorm': {'value': None, 'shape': int64_array([3, 10, 11, 5]), 'type': None, 'kind': 'op',
-                  'op': 'FusedBatchNorm', 'is_training': True, 'eps': 1e-3},
+                  'op': 'BatchNormInference', 'eps': 1e-3},
     'batchnorm_data': {'value': None, 'shape': int64_array([3, 10, 11, 5]), 'kind': 'data'},
 
     'result': {'kind': 'op', 'op': 'Result'},
@@ -77,26 +81,23 @@ nodes_attributes = {
 
 @generator
 class FusedBatchNormTrainingTest(unittest.TestCase):
-    @generate(*[
-        'FusedBatchNorm', 'FusedBatchNormV2', 'FusedBatchNormV3',
-    ])
-    def test_transformation(self, op: str):
+    def test_transformation(self):
         graph = build_graph(nodes_attributes,
                             [('placeholder', 'placeholder_data', {}),
                              ('scale', 'scale_data'),
                              ('offset', 'offset_data'),
                              ('mean', 'mean_data'),
                              ('variance', 'variance_data'),
-                             ('placeholder_data', 'batchnorm', {'in': 0}),
-                             ('scale_data', 'batchnorm', {'in': 1}),
-                             ('offset_data', 'batchnorm', {'in': 2}),
-                             ('mean_data', 'batchnorm', {'in': 3}),
-                             ('variance_data', 'batchnorm', {'in': 4}),
-                             ('batchnorm', 'batchnorm_data'),
-                             ('batchnorm_data', 'result'),
+                             ('placeholder_data', 'batchnorm_train', {'in': 0}),
+                             ('scale_data', 'batchnorm_train', {'in': 1}),
+                             ('offset_data', 'batchnorm_train', {'in': 2}),
+                             ('mean_data', 'batchnorm_train', {'in': 3}),
+                             ('variance_data', 'batchnorm_train', {'in': 4}),
+                             ('batchnorm_train', 'batchnorm_train_data'),
+                             ('batchnorm_train_data', 'result'),
                              ],
                             {}, nodes_with_edges_only=True)
-        graph.nodes['batchnorm']['op'] = op
+
         graph_ref = build_graph(nodes_attributes,
                                 [('placeholder', 'placeholder_data', {}),
                                  ('scale', 'scale_data'),
@@ -124,13 +125,9 @@ class FusedBatchNormTrainingTest(unittest.TestCase):
                                  ('batchnorm', 'batchnorm_data'),
                                  ('batchnorm_data', 'result'),
                                  ],
-                                {'batchnorm': {'is_training': False},
-
-                                 }, nodes_with_edges_only=True)
+                                {}, nodes_with_edges_only=True)
         FusedBatchNormTraining().find_and_replace_pattern(graph)
         shape_inference(graph)
-
-        graph_ref.nodes['batchnorm']['op'] = op
 
         (flag, resp) = compare_graphs(graph, graph_ref, 'result', check_op_attrs=True)
         self.assertTrue(flag, resp)
@@ -150,7 +147,7 @@ class FusedBatchNormTrainingTest(unittest.TestCase):
                              ('batchnorm', 'batchnorm_data'),
                              ('batchnorm_data', 'result'),
                              ],
-                            {'batchnorm': {'is_training': False}}, nodes_with_edges_only=True)
+                            {}, nodes_with_edges_only=True)
         graph_ref = graph.copy()
 
         FusedBatchNormTraining().find_and_replace_pattern(graph)

@@ -1,5 +1,5 @@
 """
- Copyright (C) 2017-2020 Intel Corporation
+ Copyright (C) 2017-2021 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -23,13 +23,9 @@ class PackOp(Op):
 
     def __init__(self, graph: Graph, attrs: dict):
         mandatory_props = {
-            'op': __class__.op,
+            'type': None,
+            'op': self.op,
             'out_ports_count': 1,
+            'infer': None,
         }
         super().__init__(graph, mandatory_props, attrs)
-
-    def supported_attrs(self):
-        return [
-            'axis'
-        ]
-

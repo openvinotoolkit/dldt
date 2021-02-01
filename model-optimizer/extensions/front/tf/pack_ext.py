@@ -1,5 +1,5 @@
 """
- Copyright (C) 2018-2020 Intel Corporation
+ Copyright (C) 2018-2021 Intel Corporation
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -13,11 +13,21 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from extensions.ops.pack import PackOp
+from mo.front.extractor import FrontExtractorOp
+from mo.graph.graph import Node
 
-from mo.front.common.partial_infer.elemental import copy_shape_infer
 
+class PackFrontExtractor(FrontExtractorOp):
+    op = 'Pack'
+    enabled = True
 
-def tf_identity_ext(pb):
-    return {
-        'infer': copy_shape_infer
-    }
+    @classmethod
+    def extract(cls, node: Node):
+        pb = node.pb
+        attrs = {
+            'axis': pb.attr["axis"].i,
+            'N': pb.attr["N"].i
+        }
+        PackOp.update_node_stat(node, attrs)
+        return cls.enabled
