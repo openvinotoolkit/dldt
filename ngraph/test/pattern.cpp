@@ -846,9 +846,79 @@ TEST(pattern, wrap_type)
     }
     {
         auto m1 = pattern::wrap_type<op::v1::Multiply>(
-            {pattern::wrap_type<op::Constant>(), pattern::any_input()});
+            {pattern::wrap_type<op::Constant, op::Parameter>(), pattern::any_input()});
         auto matcher = std::make_shared<pattern::Matcher>(m1, "MultiplyMatcher");
         ASSERT_TRUE(matcher->match(static_pointer_cast<Node>(mul1)));
         ASSERT_TRUE(matcher->match(static_pointer_cast<Node>(mul2)));
+    }
+}
+
+TEST(patter, predicates)
+{
+    {
+        auto param =
+            make_shared<op::Parameter>(element::f32, PartialShape{Dimension::dynamic(), 3, 64, 64});
+
+        auto pred = pattern::all_of(
+            pattern::rank_is_equal_to(4),
+            pattern::any_of(pattern::dim_is_equal_to(1, 3), pattern::dim_is_equal_to(1, 4)));
+
+        ASSERT_TRUE(pred(param));
+    }
+
+    {
+        auto param = make_shared<op::Parameter>(
+            element::f32, PartialShape{Dimension::dynamic(), Dimension::dynamic(), 64, 64});
+
+        auto pred = pattern::all_of(
+            pattern::rank_is_equal_to(4),
+            pattern::any_of(pattern::dim_is_equal_to(1, 3), pattern::dim_is_equal_to(2, 60)));
+
+        ASSERT_FALSE(pred(param));
+    }
+
+    {
+        auto param = op::Constant::create(element::i64, Shape{4}, {0, 1, 2, 3, 4});
+
+        auto pred = pattern::all_of(pattern::type_matches(element::i64),
+                                    pattern::value_is_equal_to<int64_t>({0, 1, 2, 3, 4}));
+
+        ASSERT_FALSE(pred(param));
+    }
+
+    {
+        auto param = make_shared<op::Parameter>(
+            element::f32, PartialShape{Dimension::dynamic(), Dimension::dynamic(), 64, 64});
+
+        auto throw_exception = [](Output<Node> output) -> bool {
+            throw ngraph::ngraph_error("exception");
+        };
+
+        // Check that if one of all_of predicates returns false then all other predicates won't be
+        // executed
+        auto pred_all_of = pattern::all_of(pattern::rank_is_equal_to(3), throw_exception);
+        ASSERT_NO_THROW(pred_all_of(param));
+        ASSERT_FALSE(pred_all_of(param));
+
+        // Check that if one of any_of predicates returns true then all other predicates won't be
+        // executed
+        auto pred_any_of = pattern::any_of(pattern::rank_is_equal_to(4), throw_exception);
+        ASSERT_NO_THROW(pred_any_of(param));
+        ASSERT_TRUE(pred_any_of(param));
+    }
+
+    {
+        // pattern with optional input
+        auto m_op  = pattern::wrap_type<op::v1::Multiply>({pattern::any_input<1>(pattern::has_static_shape())->skip_value_map()});
+
+        auto m_op2 = pattern::wrap_type<op::v1::Multiply>({{1 : pattern::any_input(pattern::has_static_shape())->skip_value_map()}});
+
+        // graph node to match
+        auto param1 = make_shared<op::Parameter>(element::f32, PartialShape{Dimension::dynamic()});
+        auto param2 = make_shared<op::Parameter>(element::f32, PartialShape{Dimension::dynamic()});
+        auto op = make_shared<op::v1::Multiply>(param1, param2);
+
+        pattern::Matcher matcher;
+        matcher.match_value(op, m_op);
     }
 }
