@@ -41,6 +41,7 @@ from mo.utils.model_analysis import AnalysisResults
 from mo.utils.utils import refer_to_faq_msg
 from mo.utils.version import get_version
 from mo.utils.versions_checker import check_requirements
+from mo.utils.record_event import record_event, record_file
 
 
 def replace_ext(name: str, old: str, new: str):
@@ -218,18 +219,28 @@ def prepare_ir(argv: argparse.Namespace):
     if is_tf:
         from mo.front.tf.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'framework': 'tf'})
     elif is_caffe:
         from mo.front.caffe.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'framework': 'caffe'})
     elif is_mxnet:
         from mo.front.mxnet.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'framework': 'mxnet'})
     elif is_kaldi:
         from mo.front.kaldi.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'framework': 'kaldi'})
     elif is_onnx:
         from mo.front.onnx.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'framework': 'onnx'})
     graph = unified_pipeline(argv)
     return graph
 
@@ -252,6 +263,9 @@ def emit_ir(graph: Graph, argv: argparse.Namespace):
         print('\n[ SUCCESS ] Generated IR version {} model.'.format(get_ir_version(argv)))
         print('[ SUCCESS ] XML file: {}.xml'.format(os.path.join(output_dir, argv.model_name)))
         print('[ SUCCESS ] BIN file: {}.bin'.format(os.path.join(output_dir, argv.model_name)))
+        record_file(event_name="ir_generation", app_name="model_optimizer",
+                    app_version='0.6', file_path=os.path.join(output_dir, argv.model_name) + ".xml")
+
 
     return 0
 
@@ -268,6 +282,8 @@ def driver(argv: argparse.Namespace):
 
     elapsed_time = datetime.datetime.now() - start_time
     print('[ SUCCESS ] Total execution time: {:.2f} seconds. '.format(elapsed_time.total_seconds()))
+    record_event(event_name="ir_generation", app_name="model_optimizer",
+                 app_version='0.6', event_segments={'ir_generation_time': str(elapsed_time.total_seconds())})
 
     try:
         import resource
@@ -275,6 +291,8 @@ def driver(argv: argparse.Namespace):
         if sys.platform == 'darwin':
             mem_usage = round(mem_usage / 1024)
         print('[ SUCCESS ] Memory consumed: {} MB. '.format(mem_usage))
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'memory_consumption': str(mem_usage)})
     except ImportError:
         pass
 
@@ -320,4 +338,6 @@ def main(cli_parser: argparse.ArgumentParser, framework: str):
         log.error(traceback.format_exc())
         log.error("---------------- END OF BUG REPORT --------------")
         log.error("-------------------------------------------------")
+        record_event(event_name="ir_generation", app_name="model_optimizer",
+                     app_version='0.6', event_segments={'error_message': str(err)})
     return 1
