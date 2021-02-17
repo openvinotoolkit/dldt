@@ -59,6 +59,10 @@ if(COMMAND ie_faster_build)
     )
 endif()
 
+if(COMMAND ie_add_manifest)
+    ie_add_manifest(TARGET_NAME onnx_importer DEPENDENCIES ngraph)
+endif()
+
 target_link_libraries(onnx_importer PRIVATE onnx onnx_proto ${Protobuf_LIBRARIES} ngraph::builder
                                     PUBLIC ngraph)
 

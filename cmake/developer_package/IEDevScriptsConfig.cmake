@@ -213,6 +213,7 @@ include(whole_archive)
 include(linux_name)
 include(models)
 include(api_validator/api_validator)
+include(manifests/manifests)
 
 include(vs_version/vs_version)
 include(plugins/plugins)

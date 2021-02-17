@@ -70,6 +70,10 @@ target_include_directories(${TARGET_NAME} INTERFACE ${PUBLIC_HEADERS_DIR})
 
 ie_add_api_validator_post_build_step(TARGET ${TARGET_NAME})
 
+ie_add_manifest(TARGET_NAME ${TARGET_NAME}
+                DEPENDENCIES ${NGRAPH_LIBRARIES}
+                             inference_engine_transformations)
+
 # LTO
 
 set_target_properties(${TARGET_NAME} ${TARGET_NAME}_obj

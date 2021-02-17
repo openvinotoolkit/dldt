@@ -51,6 +51,10 @@ if(COMMAND ie_add_vs_version_file)
                            FILEDESCRIPTION "nGraph library")
 endif()
 
+if(COMMAND ie_add_manifest)
+    ie_add_manifest(TARGET_NAME ngraph)
+endif()
+
 target_link_libraries(ngraph PRIVATE openvino::conditional_compilation openvino::itt ngraph::builder ngraph::reference)
 
 if(NGRAPH_ADDRESS_SANITIZER)

@@ -483,6 +483,7 @@ TEST_P(PreprocessTest, SetScalePreProcessGetBlob) {
     preProcess[0]->stdScale = 2;
     preProcess[1]->stdScale = 2;
     preProcess[2]->stdScale = 2;
+    
     preProcess[0]->meanValue = 0;
     preProcess[1]->meanValue = 0;
     preProcess[2]->meanValue = 0;
