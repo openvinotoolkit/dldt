@@ -38,6 +38,7 @@ jobs:
     IB_DIR: C:\Program Files (x86)\IncrediBuild
     IB_TESTCONSOLE: $(IB_DIR)\IBTestConsole.exe
     TEST_ENV_PATH: $(REPO_DIR)\inference-engine\temp\tbb\bin;$(REPO_DIR)\inference-engine\temp\opencv_4.5.2\opencv\bin;$(IB_DIR);%PATH%
+    PYTHON_DIR: C:\hostedtoolcache\windows\Python\3.7.6\x64
 
   steps:
   - script: |
@@ -94,8 +95,7 @@ jobs:
 
   - script: |
       set PATH=$(WORK_DIR)\ninja-win;%PATH%
-      set PYTHON_lOCAL_PATH=C:\hostedtoolcache\windows\Python\3.7.6\x64
-      call "$(MSVS_VARS_PATH)" && cmake -GNinja -DENABLE_FASTER_BUILD=ON -DENABLE_TEMPLATE_PLUGIN=ON -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DENABLE_PYTHON=ON -DPYTHON_EXECUTABLE=$$(PYTHON_lOCAL_PATH)\python.exe -DPYTHON_INCLUDE_DIR=$$(PYTHON_lOCAL_PATH)\include -DPYTHON_LIBRARY=$$(PYTHON_lOCAL_PATH)\libs\python37.lib -DENABLE_TESTS=ON -DIE_EXTRA_MODULES=$(OPENVINO_CONTRIB_REPO_DIR)\modules -DCMAKE_C_COMPILER:PATH="$(MSVC_COMPILER_PATH)" -DCMAKE_CXX_COMPILER:PATH="$(MSVC_COMPILER_PATH)" $(REPO_DIR)
+      call "$(MSVS_VARS_PATH)" && cmake -GNinja -DENABLE_FASTER_BUILD=ON -DENABLE_TEMPLATE_PLUGIN=ON -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DENABLE_PYTHON=ON -DPYTHON_EXECUTABLE=$(PYTHON_DIR)\python.exe -DPYTHON_INCLUDE_DIR=$(PYTHON_DIR)\include -DPYTHON_LIBRARY=$(PYTHON_DIR)\libs\python37.lib -DENABLE_TESTS=ON -DIE_EXTRA_MODULES=$(OPENVINO_CONTRIB_REPO_DIR)\modules -DCMAKE_C_COMPILER:PATH="$(MSVC_COMPILER_PATH)" -DCMAKE_CXX_COMPILER:PATH="$(MSVC_COMPILER_PATH)" $(REPO_DIR)
     workingDirectory: $(BUILD_DIR)
     displayName: 'CMake'
 
