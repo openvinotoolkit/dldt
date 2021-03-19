@@ -52,8 +52,6 @@ class TestSpeechSample(SamplesCommonTestClass):
 
     @pytest.mark.parametrize("param", test_data_nthreads)
     def test_speech_sample_nthreads(self, param):
-        if sys.platform.startswith("win"):
-            pytest.skip("C sample doesn't support unicode paths on Windows")
         stdout = self._test(param).split('\n')
         assert os.path.isfile(param['o']), "Ark file after infer was not found"
 
