@@ -15,6 +15,7 @@
 //*****************************************************************************
 
 #include <fstream>
+#include <iterator>
 
 #include "ngraph/env_util.hpp"
 #include "ngraph/file_util.hpp"
@@ -233,6 +234,42 @@ pass::VisualizeTree::VisualizeTree(const string& file_name, node_modifiers_t nm,
 {
 }
 
+static std::string pretty_partial_shape(const PartialShape& shape)
+{
+    std::stringstream ss;
+
+    if (shape.rank().is_dynamic())
+    {
+        ss << "?";
+    }
+    else
+    {
+        bool first = true;
+
+        ss << "[";
+        for (size_t i = 0; i < shape.rank().get_length(); i++)
+        {
+            if (!first)
+            {
+                ss << ",";
+            }
+            if (shape[i].is_dynamic())
+            {
+                ss << shape[i];
+            }
+            else
+            {
+                ss << shape[i].get_length();
+            }
+            first = false;
+        }
+        ss << "]";
+    }
+
+    return ss.str();
+}
+
+
 void pass::VisualizeTree::add_node_arguments(shared_ptr<Node> node,
                                              unordered_map<Node*, HeightMap>& height_maps,
                                              size_t& fake_node_ctr)
@@ -248,7 +285,10 @@ void pass::VisualizeTree::add_node_arguments(shared_ptr<Node> node,
             auto color = (arg->description() == "Parameter" ? "blue" : "black");
             m_ss << "    " << clone_name << "[shape=\"box\" style=\"dashed,filled\" color=\""
                  << color << "\" fillcolor=\"white\" label=\"" << get_node_name(arg) << "\n"
-                 << get_constant_value(arg) << "\"]\n";
+                 << (is_type<ngraph::op::Constant>(arg)
+                         ? get_constant_value(arg)
+                         : pretty_partial_shape(arg->get_output_partial_shape(0)))
+                 << "\"]\n";
             m_ss << "    " << clone_name << " -> " << node->get_name()
                  << label_edge(arg, node, arg_index, jump_distance) << "\n";
             fake_node_ctr++;
@@ -295,39 +335,40 @@ string pass::VisualizeTree::add_attributes(shared_ptr<Node> node)
     return rc;
 }
 
-static std::string pretty_partial_shape(const PartialShape& shape)
+string get_output_attributes(shared_ptr<Node> node)
 {
-    std::stringstream ss;
+    ostringstream label;
 
-    if (shape.rank().is_dynamic())
-    {
-        ss << "?";
-    }
-    else
-    {
-        bool first = true;
+    static const bool nvtos = getenv_bool("NGRAPH_VISUALIZE_TREE_OUTPUT_SHAPES");
+    static const bool nvtot = getenv_bool("NGRAPH_VISUALIZE_TREE_OUTPUT_TYPES");
+    static const bool nvtio = getenv_bool("NGRAPH_VISUALIZE_TREE_IO");
 
-        ss << "[";
-        for (size_t i = 0; i < shape.rank().get_length(); i++)
+    if (nvtos || nvtot || nvtio)
+    {
+        if (nvtio)
         {
-            if (!first)
+            for (const auto& input : node->inputs())
             {
-                ss << ",";
+                label << "\\nin" << to_string(input.get_index()) << ": ";
+                if (nvtot)
+                    label << "{" << input.get_element_type().get_type_name() << "}";
+                if (nvtos)
+                    label << pretty_partial_shape(input.get_partial_shape());
+                label << ": " << node->get_input_node_ptr(input.get_index())->get_name()
+                      << ": out" << input.get_source_output().get_index();
             }
-            if (shape[i].is_dynamic())
-            {
-                ss << shape[i];
-            }
-            else
-            {
-                ss << shape[i].get_length();
-            }
-            first = false;
         }
-        ss << "]";
+        for (const auto& output : node->outputs())
+        {
+            if (nvtio)
+                label << "\\nout" << to_string(output.get_index()) << ": ";
+            if (nvtot)
+                label << "{" << output.get_element_type().get_type_name() << "}";
+            if (nvtos)
+                label << pretty_partial_shape(output.get_partial_shape());
+        }
     }
-
-    return ss.str();
+    return label.str();
 }
 
 template <typename T>
@@ -415,37 +456,7 @@ string pass::VisualizeTree::get_attributes(shared_ptr<Node> node)
     // Construct the label attribute
     {
         stringstream label;
-        label << "label=\"" << get_node_name(node);
-
-        static const bool nvtos = getenv_bool("NGRAPH_VISUALIZE_TREE_OUTPUT_SHAPES");
-        static const bool nvtot = getenv_bool("NGRAPH_VISUALIZE_TREE_OUTPUT_TYPES");
-        static const bool nvtio = getenv_bool("NGRAPH_VISUALIZE_TREE_IO");
-
-        if (nvtos || nvtot || nvtio)
-        {
-            if (nvtio)
-            {
-                for (const auto& input : node->inputs())
-                {
-                    label << "\\nin" << to_string(input.get_index()) << ": ";
-                    if (nvtot)
-                        label << "{" << input.get_element_type().get_type_name() << "}";
-                    if (nvtos)
-                        label << pretty_partial_shape(input.get_partial_shape());
-                    label << ": " << node->get_input_node_ptr(input.get_index())->get_name()
-                          << ": out" << input.get_source_output().get_index();
-                }
-            }
-            for (const auto& output : node->outputs())
-            {
-                if (nvtio)
-                    label << "\\nout" << to_string(output.get_index()) << ": ";
-                if (nvtot)
-                    label << "{" << output.get_element_type().get_type_name() << "}";
-                if (nvtos)
-                    label << pretty_partial_shape(output.get_partial_shape());
-            }
-        }
+        label << "label=\"" << get_node_name(node) << get_output_attributes(node);
 
         auto eh = m_ops_to_details.find(node->get_type_info());
         if (eh != m_ops_to_details.end())

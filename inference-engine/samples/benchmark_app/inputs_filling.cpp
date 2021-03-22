@@ -208,14 +208,19 @@ void fillBlobs(const std::vector<std::string>& inputFiles,
                std::vector<InferReqWrap::Ptr> requests) {
     std::vector<std::pair<size_t, size_t>> input_image_sizes;
     for (auto& item : app_inputs_info) {
-        if (item.second.isImage()) {
+        if (item.second.partialShape.is_static() && item.second.isImage()) {
             input_image_sizes.push_back(std::make_pair(item.second.width(), item.second.height()));
         }
         slog::info << "Network input '" << item.first << "' precision " << item.second.precision
                                                       << ", dimensions (" << item.second.layout << "): ";
-        for (const auto& i : item.second.shape) {
+        for (const auto& i : item.second.blobShape) {
             slog::info << i << " ";
         }
+        slog::info << " [ dynamic: ";
+        for (const auto& i : item.second.partialShape) {
+            slog::info << i << " ";
+        }
+        slog::info << "]";
         slog::info << slog::endl;
     }
 
@@ -277,6 +282,17 @@ void fillBlobs(const std::vector<std::string>& inputFiles,
         size_t imageInputId = 0;
         size_t binaryInputId = 0;
         for (auto& item : app_inputs_info) {
+#if 0
+            // TODO: should be already verified when app_inputs_info is populated
+
+            if (item.second.partialShape.is_static()) {
+                requests.at(requestId)->setShape(item.first, item.second.partialShape);
+            } else {
+                THROW_IE_EXCEPTION << "Input " << item.first << " has dynamic shape and doesn't have static shape in -blob_shapes.";
+            }
+#endif
+            if (item.second.partialShape.is_dynamic())
+                requests.at(requestId)->setShape(item.first, item.second.blobShape);
             Blob::Ptr inputBlob = requests.at(requestId)->getBlob(item.first);
             auto app_info = app_inputs_info.at(item.first);
             auto precision = app_info.precision;

@@ -90,6 +90,8 @@ public:
      */
     virtual void SetBatch(int batch) = 0;
 
+    virtual void SetShape(const char* /*name*/, const SizeVector& /*dims*/) = 0;
+
     /**
      * @brief Queries memory states.
      * @return Returns memory states

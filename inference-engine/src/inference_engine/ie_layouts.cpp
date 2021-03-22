@@ -10,9 +10,16 @@
 using namespace InferenceEngine;
 
 TensorDesc::TensorDesc(const Precision& precision, const SizeVector& dims, Layout layout)
-    : precision(precision), blockingDesc(dims, layout) {
+    : precision(precision), blockingDesc(dims, layout), partialShape(dims) {
     this->dims = dims;
     this->layout = layout;
+}
+
+TensorDesc::TensorDesc(const Precision& precision, const ngraph::PartialShape& shape, Layout layout)
+    : layout(layout), precision(precision), partialShape(shape) {
+    if (shape.is_static()) {
+        dims = shape.get_shape();
+    }
 }
 
 TensorDesc::TensorDesc(const Precision& precision, Layout layout): precision(precision), blockingDesc() {
@@ -20,7 +27,7 @@ TensorDesc::TensorDesc(const Precision& precision, Layout layout): precision(pre
 }
 
 TensorDesc::TensorDesc(const Precision& precision, const SizeVector& dims, const BlockingDesc& blockDesc)
-    : dims(dims), precision(precision), blockingDesc(blockDesc) {
+    : dims(dims), precision(precision), blockingDesc(blockDesc), partialShape(dims) {
     if (dims.size() == 0 || blockingDesc.getBlockDims().size() == 0) {
         layout = Layout::SCALAR;
         return;
@@ -94,55 +101,64 @@ void TensorDesc::setDims(const SizeVector& dims) {
         blockingDesc = BlockingDesc(dims, layout);
     }
     if (layout != Layout::SCALAR) this->dims = dims;
+    partialShape = ngraph::PartialShape(dims);
 }
 
 void TensorDesc::setLayout(Layout l) {
     bool inconsistentLayout = true;
+    size_t rank = 0;
+    if (partialShape.rank().is_static()) {
+        rank = partialShape.rank().get_length();
+    }
 
     switch (l) {
     case Layout::SCALAR:
-        inconsistentLayout = !dims.empty();
+        inconsistentLayout = rank > 0;
         break;
     case Layout::C:
-        inconsistentLayout = dims.size() != 1;
+        inconsistentLayout = rank != 1;
         break;
     case Layout::BLOCKED:
     case Layout::ANY:
         inconsistentLayout = false;
         break;
     case Layout::GOIDHW:
-        inconsistentLayout = dims.size() != 6;
+        inconsistentLayout = rank != 6;
         break;
     case Layout::NCDHW:
     case Layout::NDHWC:
     case Layout::OIDHW:
     case Layout::GOIHW:
-        inconsistentLayout = dims.size() != 5;
+        inconsistentLayout = rank != 5;
         break;
     case Layout::OIHW:
     case Layout::NCHW:
     case Layout::NHWC:
-        inconsistentLayout = dims.size() != 4;
+        inconsistentLayout = rank != 4;
         break;
     case Layout::CHW:
+        inconsistentLayout = rank != 3;
     case Layout::HWC:
-        inconsistentLayout = dims.size() != 3;
+        inconsistentLayout = rank != 3;
         break;
     case Layout::CN:
     case Layout::NC:
     case Layout::HW:
-        inconsistentLayout = dims.size() != 2;
+        inconsistentLayout = rank != 2;
         break;
     default:
         break;
     }
 
-    if (inconsistentLayout) {
-        THROW_IE_EXCEPTION << "Size of dims(" << std::to_string(dims.size()) << ") and format(" << l
+    if (inconsistentLayout && partialShape.rank().is_static()) {
+        THROW_IE_EXCEPTION << "Tensor shape " << partialShape << ") and format(" << l
                            << ") are inconsistent.";
     }
 
-    // HACK: we need to update BlockingDesc after layout change, but if it was set manually not sure how to di this properly
+    if (partialShape.is_dynamic())
+        return;  // nothing to do if shape is really dynamic
+
+    // HACK: we need to update BlockingDesc after layout change, but if it was set manually not sure how to do this properly
     const bool hasDefaultBlockingDesc =
             blockingDesc == BlockingDesc(dims, layout);
 
@@ -154,7 +170,11 @@ void TensorDesc::setLayout(Layout l) {
 }
 
 bool TensorDesc::operator==(const TensorDesc& rhs) const {
-    return blockingDesc == rhs.blockingDesc && precision == rhs.precision && layout == rhs.layout && dims == rhs.dims;
+    return blockingDesc == rhs.blockingDesc &&
+    precision == rhs.precision &&
+    layout == rhs.layout &&
+    dims == rhs.dims &&
+    partialShape == rhs.partialShape;
 }
 
 bool TensorDesc::operator!=(const TensorDesc& rhs) const {
@@ -230,12 +250,26 @@ void TensorDesc::reshape(const SizeVector& dims, Layout layout) {
         blockingDesc = BlockingDesc(dims, this->layout);
     }
     this->dims = dims;
+    this->partialShape = ngraph::PartialShape(dims);
 }
+
+void TensorDesc::reshape(const ngraph::PartialShape& shape, Layout layout) {
+    if (shape.is_static()) {
+        reshape(SizeVector(shape.get_shape()), layout);
+    } else {
+        partialShape = shape;
+        // no chance to set any reasonable blocking desc if shape is dynamic
+        blockingDesc = BlockingDesc();
+        this->layout = layout;
+    }
+}
+
 
 void TensorDesc::reshape(const SizeVector& dims, const BlockingDesc& blockDesc) {
     blockingDesc = blockDesc;
     this->dims = dims;
     this->layout = Layout::BLOCKED;
+    partialShape = ngraph::PartialShape(dims);
 }
 
 BlockingDesc::BlockingDesc(const SizeVector& block_dims, const SizeVector& order): offsetPadding(0) {

@@ -11,6 +11,8 @@
 
 #include <algorithm>
 
+#include <ngraph/partial_shape.hpp>
+
 #include "ie_api.h"
 #include "ie_common.h"
 #include "ie_precision.hpp"
@@ -173,6 +175,12 @@ public:
      * @param layout memory layout
      */
     TensorDesc(const Precision& precision, const SizeVector& dims, Layout layout);
+
+    TensorDesc(const Precision& precision, const std::initializer_list<size_t>& dims, Layout layout)
+        : TensorDesc(precision, SizeVector(dims), layout) {}
+
+    TensorDesc(const Precision& precision, const ngraph::PartialShape& dims, Layout layout);
+
     /**
      * @brief The constructor creates the empty tensor descriptor with precision and layout
      *
@@ -192,6 +200,13 @@ public:
      * @param layout new layout if it is necessary
      */
     void reshape(const SizeVector& dims, Layout layout = Layout::ANY);
+
+    void reshape(const std::initializer_list<size_t>& _dims, Layout _layout = Layout::ANY) {
+        return reshape(SizeVector(_dims), _layout);
+    }
+
+    void reshape(const ngraph::PartialShape& shape, Layout layout = Layout::ANY);
+
     /**
      * @brief Reshapes the tensor descriptor
      *
@@ -200,21 +215,36 @@ public:
      */
     void reshape(const SizeVector& dims, const BlockingDesc& blockDesc);
 
+    bool isStatic() const {
+        return partialShape.is_static();
+    }
+
+    // TODO: Create reshape with PartialShape and blockDesc?
+
     /**
      * @brief Returns the vector of dimensions
      *
      * @return dimensions
      */
     SizeVector& getDims() {
-        return dims;
+        if (partialShape.is_static())
+            return dims;
+        else
+            THROW_IE_EXCEPTION << "Tried to call getDims for TensorDesc with dynamic shape " << partialShape;
+    }
+    const ngraph::PartialShape& getPartialShape() const {
+        return partialShape;
     }
     /**
      * @brief Returns the constant vector of dimensions
      *
      * @return dimensions
      */
-    const SizeVector& getDims() const noexcept {
-        return dims;
+    const SizeVector& getDims() const {
+        if (partialShape.is_static())
+            return dims;
+        else
+            THROW_IE_EXCEPTION << "Tried to call getDims for TensorDesc with dynamic shape " << partialShape;
     }
     /**
      * @brief Sets dimensions
@@ -321,6 +351,10 @@ private:
      * Detailed information about layout construction
      */
     BlockingDesc blockingDesc;
+    /**
+     * Partial shape defined for tensors with unknown dimensions
+     */
+    ngraph::PartialShape partialShape;
 };
 
 /**

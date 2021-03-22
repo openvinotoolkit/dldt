@@ -35,7 +35,7 @@ namespace benchmark_app {
         size_t pos = layout.find(character);
         if (pos == std::string::npos)
             throw std::runtime_error("Error: Can't get " + std::string(character, 1) + " from layout " + layout);
-        return shape.at(pos);
+        return blobShape.at(pos);
     }
     size_t InputInfo::width() const {
         return getDimentionByLayout('W');
@@ -138,14 +138,97 @@ std::map<std::string, std::string> parseNStreamsValuePerDevice(const std::vector
     return result;
 }
 
+#if 0
+bool adjustShapesBatch(InferenceEngine::ICNNNetwork::InputPartialShapes& shapes,
+                       const size_t batch_size, const InferenceEngine::InputsDataMap& input_info) {
+    bool updated = false;
+    for (auto& item : input_info) {
+        auto layout = item.second->getTensorDesc().getLayout();
+
+        int batch_index = -1;
+        if ((layout == InferenceEngine::Layout::NCHW) || (layout == InferenceEngine::Layout::NCDHW) ||
+            (layout == InferenceEngine::Layout::NHWC) || (layout == InferenceEngine::Layout::NDHWC) ||
+            (layout == InferenceEngine::Layout::NC)) {
+            batch_index = 0;
+        } else if (layout == InferenceEngine::Layout::CN) {
+            batch_index = 1;
+        }
+        auto batch_dimension = shapes.at(item.first)[batch_index];
+        if ((batch_index != -1) && (batch_dimension.is_dynamic() || batch_dimension.get_length() != int64_t(batch_size))) {
+            shapes[item.first][batch_index] = batch_size;
+            updated = true;
+        }
+    }
+    return updated;
+}
+
+InferenceEngine::ICNNNetwork::InputPartialShapes parseShapes(const std::string& shapes_string) {
+    InferenceEngine::ICNNNetwork::InputPartialShapes result_shapes;
+    std::string search_string = shapes_string;
+    auto start_pos = search_string.find_first_of('[');
+    while (start_pos != std::string::npos) {
+        auto end_pos = search_string.find_first_of(']');
+        if (end_pos == std::string::npos)
+            break;
+        auto input_name = search_string.substr(0, start_pos);
+        auto input_shape = search_string.substr(start_pos + 1, end_pos - start_pos - 1);
+        std::vector<ngraph::Dimension> parsed_shape;
+        for (auto& dim : split(input_shape, ',')) {
+            if (dim == "?" || dim == "-1") {
+                parsed_shape.push_back(ngraph::Dimension());
+            } else {
+                const std::string range_divider = "..";
+                size_t range_index = dim.find(range_divider);
+                if (range_index != std::string::npos) {
+                    std::string min = dim.substr(0, range_index);
+                    std::string max = dim.substr(range_index + range_divider.length());
+                    parsed_shape.push_back(ngraph::Dimension(
+                            min.empty() ? 0 : std::stoi(min),
+                            max.empty() ? ngraph::Interval::s_max : std::stoi(max)));
+                } else {
+                    parsed_shape.push_back(std::stoi(dim));
+                }
+            }
+        }
+        result_shapes[input_name] = parsed_shape;
+        search_string = search_string.substr(end_pos + 1);
+        if (search_string.empty() || search_string.front() != ',')
+            break;
+        search_string = search_string.substr(1);
+        start_pos = search_string.find_first_of('[');
+    }
+    if (!search_string.empty())
+        throw std::logic_error("Can't parse `shape` parameter: " + shapes_string);
+    return result_shapes;
+}
+
+bool updateShapes(InferenceEngine::ICNNNetwork::InputPartialShapes& shapes,
+                  const std::string shapes_string, const InferenceEngine::InputsDataMap& input_info) {
+    bool updated = false;
+    InferenceEngine::ICNNNetwork::InputPartialShapes new_shapes = parseShapes(shapes_string);
+    for (const auto& new_shape : new_shapes) {
+        const auto& input_name = new_shape.first;
+        const auto& parsed_shape = new_shape.second;
+        if (!input_name.empty()) {
+            shapes[input_name] = parsed_shape;
+            updated = true;
+        } else {
+            for (auto& item : input_info) {
+                shapes[item.first] = parsed_shape;
+            }
+            updated = true;
+        }
+    }
+    return updated;
+#endif
 size_t getBatchSize(const benchmark_app::InputsInfo& inputs_info) {
     size_t batch_size = 0;
     for (auto& info : inputs_info) {
         std::size_t batch_index = info.second.layout.find("N");
         if (batch_index != std::string::npos) {
             if (batch_size == 0)
-                batch_size = info.second.shape[batch_index];
-            else if (batch_size != info.second.shape[batch_index])
+                batch_size = info.second.blobShape[batch_index];
+            else if (batch_size != info.second.blobShape[batch_index])
                 throw std::logic_error("Can't deterimine batch size: batch is different for different inputs!");
         }
     }
@@ -154,16 +237,11 @@ size_t getBatchSize(const benchmark_app::InputsInfo& inputs_info) {
     return batch_size;
 }
 
-std::string getShapesString(const InferenceEngine::ICNNNetwork::InputShapes& shapes) {
+std::string getShapesString(const InferenceEngine::ICNNNetwork::InputPartialShapes& shapes) {
     std::stringstream ss;
     for (auto& shape : shapes) {
         if (!ss.str().empty()) ss << ", ";
-        ss << "\'" << shape.first << "': [";
-        for (size_t i = 0; i < shape.second.size(); i++) {
-            if (i > 0) ss << ", ";
-            ss << shape.second.at(i);
-        }
-        ss << "]";
+        ss << "\'" << shape.first << "': " << shape.second;
     }
     return ss.str();
 }

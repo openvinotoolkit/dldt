@@ -369,6 +369,10 @@ protected:
         StartAsync_ThreadUnsafe();
     }
 
+    void SetShape(const char* name, const SizeVector& dims) override {
+        _syncRequest->SetShape(name, dims);
+    }
+
 private:
     /**
      * @brief Create a task with next pipeline stage.

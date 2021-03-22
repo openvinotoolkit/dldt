@@ -88,6 +88,10 @@ public:
         TO_STATUS(_impl->SetBatch(batch_size));
     }
 
+    StatusCode SetShape(const char* name, const SizeVector& dims, ResponseDesc* resp) noexcept override {
+        TO_STATUS(_impl->SetShape(name, dims));
+    }
+
     IE_SUPPRESS_DEPRECATED_START
     StatusCode QueryState(IVariableState::Ptr& pState, size_t idx, ResponseDesc* resp) noexcept override {
         try {

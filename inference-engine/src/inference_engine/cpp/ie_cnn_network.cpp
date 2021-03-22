@@ -98,6 +98,23 @@ void CNNNetwork::addOutput(const std::string& layerName, size_t outputIndex) {
     CALL_STATUS_FNC(addOutput, layerName, outputIndex);
 }
 
+ICNNNetwork::InputPartialShapes CNNNetwork::getInputPartialShapes() const {
+    if (actual == nullptr) THROW_IE_EXCEPTION << "CNNNetwork was not initialized.";
+    ICNNNetwork::InputPartialShapes shapes;
+    InputsDataMap inputs;
+    actual->getInputsInfo(inputs);
+    for (const auto& pair : inputs) {
+        auto info = pair.second;
+        if (info) {
+            auto data = info->getInputData();
+            if (data) {
+                shapes[data->getName()] = data->getTensorDesc().getPartialShape();
+            }
+        }
+    }
+    return shapes;
+}
+
 ICNNNetwork::InputShapes CNNNetwork::getInputShapes() const {
     if (actual == nullptr) THROW_IE_EXCEPTION << "CNNNetwork was not initialized.";
     ICNNNetwork::InputShapes shapes;

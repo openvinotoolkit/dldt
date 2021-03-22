@@ -45,6 +45,7 @@ cdef extern from "<inference_engine.hpp>" namespace "InferenceEngine":
     cdef cppclass CTensorDesc "InferenceEngine::TensorDesc":
         CTensorDesc() except +
         CTensorDesc(const Precision& precision, SizeVector dims, Layout layout) except +
+        bool isStatic() except +
         SizeVector& getDims() except +
         void setDims(const SizeVector& dims) except +
         Layout getLayout() except +
@@ -189,6 +190,7 @@ cdef extern from "ie_api_impl.hpp" namespace "InferenceEnginePython":
         void setLayerParams(map[string, map[string, string]] params_map) except +
         void serialize(const string& path_to_xml, const string& path_to_bin) except +
         void reshape(map[string, vector[size_t]] input_shapes) except +
+        void reshapePartial(map[string, vector[vector[int64_t]]] input_shapes) except +
         void load_from_buffer(const char*xml, size_t xml_size, uint8_t*bin, size_t bin_size) except +
         object getFunction() except +
         void convertToOldRepresentation() except +
@@ -206,6 +208,7 @@ cdef extern from "ie_api_impl.hpp" namespace "InferenceEnginePython":
         void infer_async() except +
         int wait(int64_t timeout) except +
         void setBatch(int size) except +
+        void setShape(const string &blob_name, SizeVector) except +
         void setCyCallback(void (*)(void*, int), void *) except +
 
     cdef cppclass IECore:

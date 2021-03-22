@@ -53,6 +53,13 @@ static std::shared_ptr<ngraph::Function> copyFunction(const std::shared_ptr<cons
     return specialized_function;
 }
 
+static CNNNetworkNGraphImpl::InputPartialShapes ShapeMapToPartialShapeMap(const std::map<std::string, std::vector<size_t>>& inputShapes) {
+    CNNNetworkNGraphImpl::InputPartialShapes shapes;
+    for (const auto& shape : inputShapes)
+        shapes[shape.first] = ngraph::PartialShape(shape.second);
+    return shapes;
+}
+
 void CNNNetworkNGraphImpl::createDataForResult(const ::ngraph::Output<::ngraph::Node>& output, const std::string& outName,
                                                DataPtr& ptr) {
     const auto isCompatible = [](size_t size, const Layout& l) -> bool {
@@ -75,7 +82,8 @@ void CNNNetworkNGraphImpl::createDataForResult(const ::ngraph::Output<::ngraph::
     };
     // query shape from ngraph::Parameter output shape and check there are no zeros in it
     SizeVector dims;
-    if (output.get_partial_shape().is_static()) {
+    const auto& partial_shape = output.get_partial_shape();
+    if (partial_shape.is_static()) {
         dims = output.get_shape();
     }
     for (const auto& dim : dims) {
@@ -83,14 +91,18 @@ void CNNNetworkNGraphImpl::createDataForResult(const ::ngraph::Output<::ngraph::
             THROW_IE_EXCEPTION << outName << " has zero dimension which is not allowed";
     }
 
+    // TODO: works correctly for static rank only, fix it
+    auto rank = partial_shape.rank().is_static() ? partial_shape.rank().get_length() : 0;
     if (ptr) {
         const auto origLayout = ptr->getTensorDesc().getLayout();
-        const auto layout = isCompatible(dims.size(), origLayout) ? origLayout : TensorDesc::getLayoutByDims(dims);
-        ptr->reshape(dims, layout);
+        const auto layout = isCompatible(
+                rank, origLayout) ?
+                        origLayout : TensorDesc::getLayoutByDims(SizeVector(rank)); // ugly WA, TODO: modify getLyaoutByDims
+        ptr->reshape(partial_shape, layout);
     } else {
-        const auto layout = TensorDesc::getLayoutByDims(dims);
+        const auto layout = TensorDesc::getLayoutByDims(SizeVector(rank));
         const auto precision = details::convertPrecision(output.get_element_type());
-        ptr.reset(new Data(outName, {precision, dims, layout}));
+        ptr.reset(new Data(outName, {precision, partial_shape, layout}));
     }
 }
 
@@ -278,11 +290,19 @@ std::shared_ptr<ngraph::Function> CNNNetworkNGraphImpl::cloneFunction(bool const
 }
 
 void CNNNetworkNGraphImpl::reshape() {
-    reshape({});
+    reshape(std::map<std::string, ngraph::PartialShape>{});
 }
+
 
 StatusCode
 CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& inputShapes,
+                              ResponseDesc* responseDesc) noexcept {
+    return reshape(ShapeMapToPartialShapeMap(inputShapes), responseDesc);
+}
+
+
+StatusCode
+CNNNetworkNGraphImpl::reshape(const InputPartialShapes& inputShapes,
                               ResponseDesc* responseDesc) noexcept {
     try {
         auto params = _ngraph_function->get_parameters();
@@ -294,7 +314,7 @@ CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& 
             auto it = inputShapes.find(param->get_friendly_name());
             if (it == inputShapes.end())
                 continue;
-            if (param->get_partial_shape().is_dynamic() || param->get_shape() != it->second) {
+            if (param->get_partial_shape().is_dynamic() || param->get_partial_shape() != it->second) {
                 needReshape = true;
                 break;
             }
@@ -314,7 +334,12 @@ CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& 
 }
 
 void
-CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& inputShapes) {
+CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>> & inputShapes) {
+    reshape(ShapeMapToPartialShapeMap(inputShapes));
+}
+
+void
+CNNNetworkNGraphImpl::reshape(const InputPartialShapes & inputShapes) {
     OV_ITT_SCOPED_TASK(itt::domains::IE, "CNNNetworkNGraphImpl::reshape");
 
     auto params = _ngraph_function->get_parameters();
@@ -412,6 +437,98 @@ CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& 
         }
     }
 }
+
+#if 0
+StatusCode
+CNNNetworkNGraphImpl::reshape(const std::map<std::string, ngraph::PartialShape>& inputShapes,
+                              ResponseDesc* responseDesc) noexcept {
+    OV_ITT_SCOPED_TASK(itt::domains::IE, "CNNNetworkNGraphImpl::reshape");
+
+    try {
+        auto params = _ngraph_function->get_parameters();
+
+        for (size_t i = 0; i < params.size(); i++) {
+            const auto& param = params[i];
+            if (inputShapes.find(param->get_friendly_name()) == inputShapes.end())
+                continue;
+            ::ngraph::PartialShape shape(inputShapes.at(param->get_friendly_name()));
+            auto newParam = std::make_shared<::ngraph::op::Parameter>(param->get_element_type(), shape);
+            newParam->set_friendly_name(param->get_friendly_name());
+            _ngraph_function->replace_parameter(i, newParam);
+        }
+        _ngraph_function->validate_nodes_and_infer_types();
+
+        {
+            auto specialized_ngraph_function = cloneFunction(true);
+            // Call this transformation because OneHot IE and nGraph have different output precisions
+            {
+                OV_ITT_SCOPED_TASK(itt::domains::IE, "CNNNetworkNGraphImpl::ConvertOneHot");
+                ::ngraph::pass::Manager manager;
+                manager.register_pass<::ngraph::pass::ConvertOneHotToOneHotIEMatcher>()->detect_output_type(
+                        specialized_ngraph_function);
+                manager.run_passes(specialized_ngraph_function);
+            }
+            specialized_ngraph_function->validate_nodes_and_infer_types();
+
+#if 0
+            for (const auto &op : specialized_ngraph_function->get_ordered_ops()) {
+                cout << "[ " <<  op->description() << " ] " << op->get_friendly_name() << endl;
+                cout << "    Inputs: ";
+                for (const auto &in : op->inputs()) {
+                    cout << "[" << in.get_element_type().get_type_name() << "]";
+                    if (in.get_partial_shape().is_dynamic()) {
+                        cout << "dyn_shape";
+                    } else {
+                        cout << "{";
+                        bool first = true;
+                        for (auto i : in.get_shape()) {
+                            if (!first) cout << ",";
+                            cout << i;
+                            first = false;
+                        }
+                        cout << "} ";
+                    }
+                }
+                cout << endl << "    Outputs: ";
+                for (const auto &in : op->outputs()) {
+                    cout << "[" << in.get_element_type().get_type_name() << "]";
+                    if (in.get_partial_shape().is_dynamic()) {
+                        cout << "dyn_shape";
+                    } else {
+                        cout << "{";
+                        bool first = true;
+                        for (auto i : in.get_shape()) {
+                            if (!first) cout << ",";
+                            cout << i;
+                            first = false;
+                        }
+                        cout << "} ";
+                    }
+                }
+                cout << endl;
+            }
+#endif
+            std::unordered_set<std::string> opName;
+            for (const auto &result : specialized_ngraph_function->get_results()) {
+                addOutput(result->input_value(0));
+            }
+
+            for (const auto &parameter : specialized_ngraph_function->get_parameters()) {
+                const auto &outName = parameter->get_friendly_name();
+                if (opName.find(outName) != opName.end()) {
+                    THROW_IE_EXCEPTION << "All operations in nGraph function should have unique friendly names!";
+                }
+                opName.insert(outName);
+                createDataForResult(parameter, outName, _data[outName]);
+            }
+        }
+    } catch (std::exception& ex) {
+        return DescriptionBuffer(GENERAL_ERROR, responseDesc) << ex.what();
+    }
+
+    return OK;
+}
+#endif
 
 StatusCode CNNNetworkNGraphImpl::serialize(const std::string& xmlPath,
                                            const std::string& binPath,

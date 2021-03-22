@@ -138,35 +138,57 @@ bool pass::GraphRewrite::run_on_function(shared_ptr<Function> f)
     // transformation callback.
     auto run_matcher_pass = [&](std::shared_ptr<MatcherPass> m_pass,
                                 std::shared_ptr<Node> node) -> bool {
-        // Keep this property check for backward compatibility. In future transformation property
-        // will be deprecated and removed.
-        if (m_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) && f->is_dynamic())
+        try
         {
-            NGRAPH_DEBUG << "matcher callback requires static shape but the "
-                            "function is dynamic, skipping this "
-                            "optimization till the shapes are fully "
-                            "materialized";
-            return false;
-        }
-
-        // Apply MatcherPass. In case if it returns true no other MatcherPasses will apply
-        // to this node
-        bool status = m_pass->apply(node);
-
-        // In case if MatcherPass registered nodes they will be added to the beginning of execution
-        // queue
-        const auto& new_nodes = m_pass->get_new_nodes();
-        if (!new_nodes.empty())
-        {
-            // Need to push nodes in reverse order as we expect that nodes in new_nodes
-            // vector are in topological order
-            for (auto it = new_nodes.rbegin(); it != new_nodes.rend(); it++)
+            // Keep this property check for backward compatibility. In future transformation
+            // property
+            // will be deprecated and removed.
+            if (m_pass->get_property(PassProperty::REQUIRE_STATIC_SHAPE) && f->is_dynamic())
             {
-                nodes_to_run.emplace_front(*it);
+                NGRAPH_DEBUG << "matcher callback requires static shape but the "
+                                "function is dynamic, skipping this "
+                                "optimization till the shapes are fully "
+                                "materialized";
+                return false;
             }
-            m_pass->clear_new_nodes();
+
+            // Apply MatcherPass. In case if it returns true no other MatcherPasses will apply
+            // to this node
+            bool status = m_pass->apply(node);
+
+            // In case if MatcherPass registered nodes they will be added to the beginning of
+            // execution
+            // queue
+            const auto& new_nodes = m_pass->get_new_nodes();
+            if (!new_nodes.empty())
+            {
+                // Need to push nodes in reverse order as we expect that nodes in new_nodes
+                // vector are in topological order
+                for (auto it = new_nodes.rbegin(); it != new_nodes.rend(); it++)
+                {
+                    nodes_to_run.emplace_front(*it);
+                }
+                m_pass->clear_new_nodes();
+            }
+            return status;
         }
-        return status;
+        catch (const std::exception& e)
+        {
+            std::cerr << "Exception std::exception thrown while executing MatcherPass: "
+                      << m_pass->get_name() << "\n";
+            std::cerr << "    when matching node " << node_validation_failure_loc_string(node.get())
+                      << "\n";
+            std::cerr << "Exception message: " << e.what() << "\n";
+            throw;
+        }
+        catch (...)
+        {
+            std::cerr << "Exception std::exception thrown while executing MatcherPass: "
+                      << m_pass->get_name() << "\n";
+            std::cerr << "    when matching node " << node_validation_failure_loc_string(node.get())
+                      << "\n";
+            throw;
+        }
     };
 
     // list of matchers to run for a node; define here to keep memory allocated

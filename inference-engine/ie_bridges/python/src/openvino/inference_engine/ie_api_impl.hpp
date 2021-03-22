@@ -58,6 +58,8 @@ struct IENetwork {
 
     void reshape(const std::map<std::string, std::vector<size_t>> &input_shapes);
 
+    void reshapePartial(const std::map<std::string, std::vector<std::vector<int64_t>>> &input_shapes);
+
     void serialize(const std::string &path_to_xml, const std::string &path_to_bin);
 
     void load_from_buffer(const char* xml, size_t xml_size, uint8_t* bin, size_t bin_size);
@@ -119,6 +121,7 @@ struct InferRequestWrap {
                  const InferenceEngine::PreProcessInfo& info);
 
     void setBatch(int size);
+    void setShape(const std::string &blob_name, const std::vector<size_t>& dims);
 
     void getPreProcess(const std::string& blob_name, const InferenceEngine::PreProcessInfo** info);
 

@@ -281,6 +281,22 @@ void InferenceEnginePython::IENetwork::reshape(const std::map <std::string, std:
     actual->reshape(input_shapes);
 }
 
+void InferenceEnginePython::IENetwork::reshapePartial(const std::map <std::string, std::vector<std::vector<int64_t>>> &input_shapes) {
+    InferenceEngine::ICNNNetwork::InputPartialShapes new_input_shapes;
+    for(auto const& input: input_shapes){
+        using ngraph::Dimension;
+        std::vector<Dimension> dims;
+        for(auto d : input.second) {
+            if(d.size() == 1)
+                dims.push_back(Dimension(d[0]));
+            else if(d.size() == 2)
+                dims.push_back(Dimension(d[0], d[1]));
+        }
+        new_input_shapes[input.first] = ngraph::PartialShape(dims);
+    }
+    actual->reshape(new_input_shapes);
+}
+
 InferenceEnginePython::IEExecNetwork::IEExecNetwork(const std::string &name, size_t num_requests) :
         infer_requests(num_requests), name(name) {
     request_queue_ptr = std::make_shared<IdleInferRequestQueue>();
@@ -375,10 +391,14 @@ void InferenceEnginePython::InferRequestWrap::getBlobPtr(const std::string &blob
     IE_CHECK_CALL(request_ptr->GetBlob(blob_name.c_str(), blob_ptr, &response));
 }
 
-
 void InferenceEnginePython::InferRequestWrap::setBatch(int size) {
     InferenceEngine::ResponseDesc response;
     IE_CHECK_CALL(request_ptr->SetBatch(size, &response));
+}
+
+void InferenceEnginePython::InferRequestWrap::setShape(const std::string &blob_name, const std::vector<size_t>& dims) {
+    InferenceEngine::ResponseDesc response;
+    IE_CHECK_CALL(request_ptr->SetShape(blob_name.c_str(), dims, &response));
 }
 
 void latency_callback(InferenceEngine::IInferRequest::Ptr request, InferenceEngine::StatusCode code) {

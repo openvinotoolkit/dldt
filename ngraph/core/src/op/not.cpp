@@ -95,5 +95,5 @@ bool op::v1::LogicalNot::evaluate(const HostTensorVector& outputs,
                                   const HostTensorVector& inputs) const
 {
     NGRAPH_OP_SCOPE(v1_LogicalNot_evaluate);
-    return notop::evaluate_not(inputs[0], outputs[0], shape_size(get_output_shape(0)));
+    return notop::evaluate_not(inputs[0], outputs[0], shape_size(inputs[0]->get_shape()));
 }

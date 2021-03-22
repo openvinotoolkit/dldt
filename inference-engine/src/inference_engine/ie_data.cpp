@@ -103,6 +103,10 @@ void Data::reshape(const SizeVector& a_dims, Layout a_layout) {
     tensorDesc.reshape(a_dims, a_layout);
 }
 
+void Data::reshape(const ngraph::PartialShape& shape, Layout a_layout) {
+    tensorDesc.reshape(shape, a_layout);
+}
+
 Data::Data(const Data& data) :
     name(data.name), userObject(data.userObject), tensorDesc(data.tensorDesc) {
     _impl = std::make_shared<Impl>();

@@ -165,12 +165,14 @@ public:
      */
     void addOutput(const std::string& layerName, size_t outputIndex = 0);
 
+    virtual ICNNNetwork::InputPartialShapes getInputPartialShapes() const;
+
     /**
      * @brief Helper method to get collect all input shapes with names of corresponding Data objects
      *
      * @return Map of pairs: input name and its dimension.
      */
-    ICNNNetwork::InputShapes getInputShapes() const;
+    virtual ICNNNetwork::InputShapes getInputShapes() const;
 
     /**
      * @brief Run shape inference with new input shapes for the network
@@ -178,6 +180,14 @@ public:
      * @param inputShapes - map of pairs: name of corresponding data and its dimension.
      */
     void reshape(const ICNNNetwork::InputShapes& inputShapes);
+
+    virtual void reshape(const std::initializer_list<ICNNNetwork::InputShapes::value_type>& inputShapes) {
+        return reshape(ICNNNetwork::InputShapes(inputShapes));
+    }
+
+    virtual void reshape(const ICNNNetwork::InputPartialShapes& inputShapes) {
+        CALL_STATUS_FNC(reshape, inputShapes);
+    }
 
     /**
      * @brief Serialize network to IR and weights files.
