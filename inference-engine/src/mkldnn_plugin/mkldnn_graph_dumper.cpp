@@ -113,6 +113,13 @@ std::map<std::string, std::string> extract_node_metadata(const MKLDNNNodePtr &no
 }  // namespace
 
 InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph) {
+#define CONSTANT_LAYERS
+#ifdef CONSTANT_LAYERS
+    bool shouldDumpConstantNodes = true;
+#else
+    bool shouldDumpConstantNodes = false;
+#endif
+
     std::map<MKLDNNNodePtr, std::shared_ptr<ngraph::Node> > node2layer;
 
     ngraph::ResultVector results;
@@ -122,19 +129,25 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
     auto get_inputs = [&] (const MKLDNNNodePtr & node) {
         auto pr_edges = node->getParentEdges();
         ngraph::OutputVector inputs(pr_edges.size());
+        int ch_port = 0;
 
         for (int i = 0; i < pr_edges.size(); i++) {
             auto edge = node->getParentEdgeAt(i);
             int pr_port = edge->getInputNum();
-            int ch_port = edge->getOutputNum();
             auto pr_node = edge->getParent();
+
+            if (shouldDumpConstantNodes) {
+                ch_port =  edge->getOutputNum();
+            } else {
+                if (pr_node->getType() == Input && pr_node->isConstant()) continue;
+            }
 
             IE_ASSERT(node2layer.count(pr_node) == 1);
             auto pr = node2layer[pr_node];
 
-            inputs[ch_port] = pr->output(pr_port);
+            inputs[ch_port++] = pr->output(pr_port);
         }
-
+        inputs.resize(ch_port);
         return inputs;
     };
 
