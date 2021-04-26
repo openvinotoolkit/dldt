@@ -5,6 +5,7 @@
 #include "kernels_factory.hpp"
 #include "kernels_cache.hpp"
 #include "ocl/ocl_engine.hpp"
+#include "ocl/ocl_device_detector.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -394,7 +395,20 @@ void kernels_cache::build_all() {
     std::unique_ptr<ocl::ocl_engine> _build_engine = nullptr;
     if (_engine.type() == engine_types::ocl) {
         _build_engine = std::unique_ptr<ocl::ocl_engine>(new ocl::ocl_engine(_engine.get_device(), runtime_types::ocl, _engine.configuration()));
+    } else {
+        ocl::ocl_device_detector detector;
+        device::ptr ocl_device;
+        auto devices = detector.get_available_devices(nullptr, nullptr);
+        if (devices.empty()) {
+            throw std::runtime_error("No suitable OCL device found to build the program");
+        }
+        if (devices.size() != 1) {
+            throw std::runtime_error("L0 backend doesn't support multi-gpu configuration so far as we don't have a mechanism to map OCL <-> L0 devices");
+        }
+
+        _build_engine = std::unique_ptr<ocl::ocl_engine>(new ocl::ocl_engine(devices.begin()->second, runtime_types::ocl, _engine.configuration()));
     }
+
     std::vector<batch_program> batches;
     {
         std::lock_guard<std::mutex> lock(_mutex);
