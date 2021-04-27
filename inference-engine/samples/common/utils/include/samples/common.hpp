@@ -515,7 +515,7 @@ static std::vector<std::pair<std::string, InferenceEngine::InferenceEngineProfil
     return sorted;
 }
 
-static UNUSED void printPerformanceCounts(const std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>& performanceMap, std::ostream &stream,
+static UNUSED void printPerformanceCounts(const std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>& performanceMap, std::ostream& stream,
                                           std::string deviceName, bool bshowHeader = true) {
 #define CONSTANT_LAYERS
 #ifdef CONSTANT_LAYERS
@@ -534,7 +534,8 @@ static UNUSED void printPerformanceCounts(const std::map<std::string, InferenceE
 
     for (const auto& it : performanceMapSorted) {
         if (!shouldPrintConstantNodes) {
-            if (std::string(it.second.layer_type) == "Const") continue;
+            if (std::string(it.second.layer_type) == "Const")
+                continue;
         }
 
         std::string toPrint(it.first);
