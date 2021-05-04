@@ -5,6 +5,8 @@
 #include "low_precision/multiply_to_group_convolution.hpp"
 #include <memory>
 #include <ngraph/ngraph.hpp>
+
+#include "low_precision/lpt_itt.hpp"
 #include "low_precision/network_helper.hpp"
 
 namespace ngraph {
@@ -16,6 +18,8 @@ void MultiplyToGroupConvolutionTransformation::registerMatcherIn(GraphRewrite &p
 }
 
 bool MultiplyToGroupConvolutionTransformation::transform(TransformationContext& context, ngraph::pattern::Matcher &m) const {
+    OV_ITT_SCOPED_TASK(itt::domains::LPT_LT, "MultiplyToGroupConvolutionTransformation");
+
     const auto multiply = m.get_match_root();
     if (!canBeTransformed(context, multiply)) {
         return false;
@@ -91,7 +95,7 @@ bool MultiplyToGroupConvolutionTransformation::transform(TransformationContext& 
     if (dequantization.subtract != nullptr) {
         lastNode = std::make_shared<opset1::Add>(
             convolution,
-            fold<opset1::Negative>(fold<opset1::Convert>(dequantization.subtractConstant, element::f32)));
+            fold<opset1::Negative>(foldConvert(dequantization.subtractConstant, element::f32)));
         lastNode->set_friendly_name(convolution->get_friendly_name() + "/Add");
     }
 

@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "low_precision/lpt_itt.hpp"
 #include "low_precision/network_helper.hpp"
 #include "low_precision/common/dequantization_op.hpp"
 
@@ -17,6 +18,8 @@ using namespace ngraph::pass;
 using namespace ngraph::pass::low_precision;
 
 bool MatMulTransformation::transform(TransformationContext &context, ngraph::pattern::Matcher &m) const {
+    OV_ITT_SCOPED_TASK(itt::domains::LPT_LT, "MatMulTransformation");
+
     std::shared_ptr<opset1::MatMul> matMul = as_type_ptr<opset1::MatMul>(m.get_match_root());
     if ((matMul == nullptr) || !canBeTransformed(context, matMul)) {
         return false;
@@ -80,7 +83,7 @@ bool MatMulTransformation::transform(TransformationContext &context, ngraph::pat
         // multiply by weights: [1, ..., 1, Y] x [Y, Z] => [1, ..., 1, Z]
         const auto newSubConst = NetworkHelper::toScalarIfPossible(fold<opset1::MatMul>(
             broadcastedConst,
-            fold<opset1::Convert>(newMatMul->get_input_node_shared_ptr(1), newMatMul->get_element_type()),
+            foldConvert(newMatMul->get_input_node_shared_ptr(1), newMatMul->get_element_type()),
             newMatMul->get_transpose_a(),
             newMatMul->get_transpose_b()));
 
@@ -128,7 +131,7 @@ bool MatMulTransformation::transform(TransformationContext &context, ngraph::pat
 
     const auto newMulConst = NetworkHelper::toScalarIfPossible(fold<ngraph::opset1::Multiply>(
             mulConst1,
-            fold<opset1::Convert>(mulConst2, element::f32)));
+            foldConvert(mulConst2, element::f32)));
 
     const auto newMultiply = std::make_shared<op::TypeRelaxed<DequantizationMultiply>>(
         std::vector<element::Type>{ deqPrecision, deqPrecision },

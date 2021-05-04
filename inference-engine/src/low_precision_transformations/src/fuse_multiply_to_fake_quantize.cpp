@@ -5,6 +5,8 @@
 #include "low_precision/fuse_multiply_to_fake_quantize.hpp"
 #include <memory>
 #include <ngraph/ngraph.hpp>
+
+#include "low_precision/lpt_itt.hpp"
 #include "low_precision/fake_quantize.hpp"
 #include "low_precision/network_helper.hpp"
 
@@ -17,6 +19,8 @@ void FuseMultiplyToFakeQuantizeTransformation::registerMatcherIn(GraphRewrite &p
 }
 
 bool FuseMultiplyToFakeQuantizeTransformation::transform(TransformationContext& context, ngraph::pattern::Matcher &m) const {
+    OV_ITT_SCOPED_TASK(itt::domains::LPT_LT, "FuseMultiplyToFakeQuantizeTransformation");
+
     const auto multiply = m.get_match_root();
     if (!canBeTransformed(context, multiply)) {
         return false;
@@ -32,12 +36,12 @@ bool FuseMultiplyToFakeQuantizeTransformation::transform(TransformationContext& 
 
     const auto multiplyConstant = multiply->get_input_node_shared_ptr(1);
 
-    auto outputLowConst_f32 = fold<opset1::Convert>(fakeQuantize->get_input_node_shared_ptr(3), deqPrecision);
-    auto outputHighConst_f32 = fold<opset1::Convert>(fakeQuantize->get_input_node_shared_ptr(4), deqPrecision);
+    auto outputLowConst_f32 = foldConvert(fakeQuantize->get_input_node_shared_ptr(3), deqPrecision);
+    auto outputHighConst_f32 = foldConvert(fakeQuantize->get_input_node_shared_ptr(4), deqPrecision);
 
     const auto value = multiplyConstant->get_output_element_type(0) == element::f32 ?
         multiplyConstant :
-        fold<opset1::Convert>(multiplyConstant, deqPrecision);
+        foldConvert(multiplyConstant, deqPrecision);
 
     outputLowConst_f32 = fold<opset1::Multiply>(outputLowConst_f32, value);
     outputHighConst_f32 = fold<opset1::Multiply>(outputHighConst_f32, value);
@@ -48,8 +52,8 @@ bool FuseMultiplyToFakeQuantizeTransformation::transform(TransformationContext& 
     auto newFakeQuantize = std::make_shared<op::TypeRelaxed<opset1::FakeQuantize>>(
         opset1::FakeQuantize(
             fakeQuantizeParent->output(parentIndex),
-            fold<opset1::Convert>(fakeQuantize->input_value(1), deqPrecision),
-            fold<opset1::Convert>(fakeQuantize->input_value(2), deqPrecision),
+            foldConvert(fakeQuantize->input_value(1), deqPrecision),
+            foldConvert(fakeQuantize->input_value(2), deqPrecision),
             outputLowConst_f32,
             outputHighConst_f32,
             fakeQuantize->get_levels()),

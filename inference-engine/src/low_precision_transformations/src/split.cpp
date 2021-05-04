@@ -4,6 +4,7 @@
 
 #include "low_precision/split.hpp"
 #include "ngraph/node.hpp"
+#include "low_precision/lpt_itt.hpp"
 #include "low_precision/network_helper.hpp"
 #include "low_precision/common/dequantization_op.hpp"
 
@@ -19,6 +20,8 @@ void SplitTransformation::registerMatcherIn(GraphRewrite& pass, TransformationCo
 }
 
 bool SplitTransformation::transform(TransformationContext& context, ngraph::pattern::Matcher& m) const {
+    OV_ITT_SCOPED_TASK(itt::domains::LPT_LT, "SplitTransformation");
+
     if (!canBeTransformed(context, m.get_match_root())) {
         return false;
     }
@@ -90,7 +93,12 @@ bool SplitTransformation::transform(TransformationContext& context, ngraph::patt
         replacement.push_back(multiply);
     }
 
-    replace_node(split, replacement);
+    for (size_t i = 0ul; i < newSplit->get_output_size(); ++i) {
+        for (auto input : split->output(i).get_target_inputs()) {
+            input.replace_source_output(replacement[i]);
+        }
+    }
+
     updateOutputs(context, lastNodes, newSplit);
     return true;
 }

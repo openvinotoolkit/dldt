@@ -12,6 +12,7 @@
 #include <vector>
 #include <cassert>
 
+#include "low_precision/lpt_itt.hpp"
 #include "low_precision/common/ie_lpt_exception.hpp"
 #include "low_precision/common/dequantization_op.hpp"
 #include "low_precision/network_helper.hpp"
@@ -25,6 +26,8 @@ void MultiplyTransformation::registerMatcherIn(GraphRewrite &pass, Transformatio
 }
 
 bool MultiplyTransformation::transform(TransformationContext& context, ngraph::pattern::Matcher &m) const {
+    OV_ITT_SCOPED_TASK(itt::domains::LPT_LT, "MultiplyTransformation");
+
     auto multiply = m.get_match_root();
     if (!LayerTransformation::canBeTransformed(context, multiply)) {
         return false;
@@ -74,8 +77,8 @@ bool MultiplyTransformation::transform(TransformationContext& context, ngraph::p
             ngraph::op::TemporaryReplaceOutputType(multiplyParentParent, element::f32).get(),
             ngraph::op::TemporaryReplaceOutputType(
                 fold<opset1::Multiply>(
-                    fold<opset1::Convert>(multiplyParentConst, element::f32),
-                    fold<opset1::Convert>(constParent, element::f32)),
+                    foldConvert(multiplyParentConst, element::f32),
+                    foldConvert(constParent, element::f32)),
                 element::f32).get());
 
         NetworkHelper::copyInfo(multiplyParent.get_node_shared_ptr(), newMultiply);
