@@ -113,7 +113,7 @@ std::map<std::string, std::string> extract_node_metadata(const MKLDNNNodePtr &no
 }  // namespace
 
 InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph) {
-#define CONSTANT_LAYERS
+//#define CONSTANT_LAYERS
 #ifdef CONSTANT_LAYERS
     bool shouldDumpConstantNodes = true;
 #else
