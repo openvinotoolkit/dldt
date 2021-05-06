@@ -86,6 +86,10 @@
 #include <low_precision/multiply_to_group_convolution.hpp>
 #include <low_precision/network_helper.hpp>
 
+#include <low_precision/layer_transformation.hpp>
+#include <low_precision/manager.hpp>
+#include <low_precision/low_precision.hpp>
+
 #include "nodes/mkldnn_mvn_node.h"
 #include "nodes/mkldnn_quantize_node.h"
 
@@ -302,27 +306,19 @@ static void Transformation(CNNNetwork& clonedNetwork, const Config& conf) {
         OV_ITT_SCOPE(FIRST_INFERENCE, MKLDNNPlugin::itt::domains::MKLDNN_LT, "LowPrecisionTransformations");
 
         ngraph::pass::Manager manager;
-        auto lptPrerequisites = manager.register_pass<ngraph::pass::GraphRewrite>();
-        const std::vector<ngraph::element::Type> supportedTypes = { ngraph::element::i8, ngraph::element::u8 };
-        lptPrerequisites->add_matcher<PullReshapeThroughDequantization>(supportedTypes);
-        lptPrerequisites->add_matcher<PullTransposeThroughDequantization>(supportedTypes);
-        lptPrerequisites->add_matcher<ngraph::pass::LinOpSequenceFusion>();
+        manager.register_pass<ngraph::pass::low_precision::LowPrecision>(); // LayerTransformation::Params(true) - updatePrecisions configuration
+
+        const auto supportedPrecisionsOnActivations = { ngraph::element::u8 };
+        // TODO: comment: apply callback for a transformation from all groups
+        auto pass_config = manager.get_pass_config();
+        pass_config->set_callback<ConvolutionTransformation, GroupConvolutionTransformation>([&](const_node_ptr& node) -> bool {
+            return WeightableLayerTransformation::checkPrecisionOnActivation(node, supportedPrecisionsOnActivations);
+        });
+        pass_config->set_callback<MultiplyToGroupConvolutionTransformation>([&](const_node_ptr& node) -> bool {
+            return MultiplyToGroupConvolutionTransformation::checkPrecisionOnActivation(node, supportedPrecisionsOnActivations);
+        });
+
         manager.run_passes(nGraphFunc);
-
-        auto params = LayerTransformation::Params(
-            true,  // updatePrecisions
-            LayerTransformation::QuantizedTensorAlignment::UpdateLevel,  // quantizedTensorAlignmentOnActivations
-            LayerTransformation::QuantizedTensorAlignment::None,  // quantizedTensorAlignmentOnWeights
-            true);  // supportAsymmetricQuantization
-        LowPrecisionTransformer transformer(LowPrecisionTransformer::getAllTransformations(params)
-            .add<ConvolutionTransformation, ngraph::opset1::Convolution>(
-                LayerTransformation::Params(params).setPrecisionsOnActivations({ngraph::element::u8}).setSupportAsymmetricQuantization(true))
-            .add<GroupConvolutionTransformation, ngraph::opset1::GroupConvolution>(
-                LayerTransformation::Params(params).setPrecisionsOnActivations({ ngraph::element::u8 }).setSupportAsymmetricQuantization(true))
-            .addStandaloneCleanup<MultiplyToGroupConvolutionTransformation, ngraph::opset1::Multiply>(
-                LayerTransformation::Params(params).setPrecisionsOnActivations({ ngraph::element::u8 })));
-
-        transformer.transform(nGraphFunc);
     }
 
     bool has_fake_quantize = ::ngraph::op::util::has_op_with_type<ngraph::op::FakeQuantize>(nGraphFunc);
