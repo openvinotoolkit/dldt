@@ -18,7 +18,7 @@ from mo.utils import import_extensions
 from mo.utils.error import Error
 from mo.utils.utils import refer_to_faq_msg
 from mo.utils.version import get_version
-
+from mo.front_ng.frontendmanager_wrapper import create_fem
 
 class DeprecatedStoreTrue(argparse.Action):
     def __init__(self, nargs=0, **kw):
@@ -92,8 +92,8 @@ def readable_file(path: str):
     :param path: path to check
     :return: path if the file is readable
     """
-    if not os.path.isfile(path):
-        raise Error('The "{}" is not existing file'.format(path))
+    if not os.path.exists(path):
+        raise Error('The "{}" doesn\'t exist'.format(path))
     elif not os.access(path, os.R_OK):
         raise Error('The "{}" is not readable'.format(path))
     else:
@@ -607,6 +607,12 @@ def get_onnx_cli_parser(parser: argparse.ArgumentParser = None):
 
     onnx_group = parser.add_argument_group('ONNX*-specific parameters')
 
+    onnx_group.add_argument("--use_legacy_frontend",
+                            help="Switch back to the original (legacy) frontend for ONNX model conversion. " +
+                                "By default, ONNX Importer is used as a converter.",
+                            default=False,
+                            action='store_true')
+
     return parser
 
 
@@ -616,14 +622,19 @@ def get_all_cli_parser():
 
     Returns
     -------
-        ArgumentParser instance
+        Tuple
+            ArgumentParser instance
+            FrontEndManager instance
     """
     parser = argparse.ArgumentParser(usage='%(prog)s [options]')
+
+    fem = create_fem()
+    frameworks = list(set(['tf', 'caffe', 'mxnet', 'kaldi', 'onnx'] + (fem.availableFrontEnds() if fem else [])))
 
     parser.add_argument('--framework',
                         help='Name of the framework used to train the input model.',
                         type=str,
-                        choices=['tf', 'caffe', 'mxnet', 'kaldi', 'onnx'])
+                        choices=frameworks)
 
     get_common_cli_parser(parser=parser)
 
@@ -633,7 +644,7 @@ def get_all_cli_parser():
     get_kaldi_cli_parser(parser=parser)
     get_onnx_cli_parser(parser=parser)
 
-    return parser
+    return parser, fem
 
 
 def remove_data_type_from_input_value(input_value: str):

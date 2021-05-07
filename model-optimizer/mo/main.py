@@ -88,9 +88,17 @@ def print_argv(argv: argparse.Namespace, is_caffe: bool, is_tf: bool, is_mxnet: 
 def prepare_ir(argv: argparse.Namespace):
     is_tf, is_caffe, is_mxnet, is_kaldi, is_onnx = deduce_framework_by_namespace(argv)
 
+    fem = argv.feManager
+    new_front_ends = []
+    if not argv.use_legacy_frontend and fem is not None:
+        new_front_ends = fem.availableFrontEnds()
+
     if not any([is_tf, is_caffe, is_mxnet, is_kaldi, is_onnx]):
-        raise Error('Framework {} is not a valid target. Please use --framework with one from the list: caffe, tf, '
-                    'mxnet, kaldi, onnx. ' + refer_to_faq_msg(15), argv.framework)
+        frameworks = ['tf', 'caffe', 'mxnet', 'kaldi', 'onnx']
+        frameworks = list(set(frameworks + new_front_ends))
+        if argv.framework not in frameworks:
+            raise Error('Framework {} is not a valid target. Please use --framework with one from the list: {}. ' +
+                        refer_to_faq_msg(15), argv.framework, frameworks)
 
     if is_tf and not argv.input_model and not argv.saved_model_dir and not argv.input_meta_graph:
         raise Error('Path to input model or saved model dir is required: use --input_model, --saved_model_dir or '
@@ -150,9 +158,11 @@ def prepare_ir(argv: argparse.Namespace):
     except Exception as e:
         pass
 
-    ret_code = check_requirements(framework=argv.framework)
-    if ret_code:
-        raise Error('check_requirements exit with return code {}'.format(ret_code))
+    if not new_front_ends or argv.framework not in new_front_ends:
+        ret_code = check_requirements(framework=argv.framework)
+        if ret_code:
+            raise Error('check_requirements exit with return code {}'.format(ret_code))
+    # TODO: should we check some 'generic' requirements if 'framework' belongs to FrontEndManager?
 
     if is_tf and argv.tensorflow_use_custom_operations_config is not None:
         argv.transformations_config = argv.tensorflow_use_custom_operations_config
@@ -234,12 +244,19 @@ def prepare_ir(argv: argparse.Namespace):
         t.send_event('mo', 'framework', 'kaldi')
         from mo.front.kaldi.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
-    elif is_onnx:
+    elif is_onnx and ('onnx' not in new_front_ends or argv.use_legacy_frontend):
         t.send_event('mo', 'framework', 'onnx')
         from mo.front.onnx.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
-    graph = unified_pipeline(argv)
-    return graph
+
+    graph = None
+    ngraphFunction = None
+    if argv.feManager is None or argv.framework not in new_front_ends or argv.use_legacy_frontend:
+        graph = unified_pipeline(argv)
+    else:
+        from mo.front_ng.pipeline import moc_pipeline
+        ngraphFunction = moc_pipeline(argv)
+    return graph, ngraphFunction
 
 
 def emit_ir(graph: Graph, argv: argparse.Namespace):
@@ -330,7 +347,12 @@ def driver(argv: argparse.Namespace):
 
     start_time = datetime.datetime.now()
 
-    ret_res = emit_ir(prepare_ir(argv), argv)
+    graph, nGraphFunction = prepare_ir(argv)
+    if graph is not None:
+        ret_res = emit_ir(graph, argv)
+    else:
+        from mo.front_ng.serialize import ngraph_emit_ir
+        ret_res = ngraph_emit_ir(nGraphFunction, argv)
 
     if ret_res != 0:
         return ret_res
@@ -350,7 +372,7 @@ def driver(argv: argparse.Namespace):
     return ret_res
 
 
-def main(cli_parser: argparse.ArgumentParser, framework: str):
+def main(cli_parser: argparse.ArgumentParser, fem, framework: str):
     telemetry = tm.Telemetry(app_name='Model Optimizer', app_version=get_simplified_mo_version())
     telemetry.start_session()
     telemetry.send_event('mo', 'version', get_simplified_mo_version())
@@ -362,6 +384,7 @@ def main(cli_parser: argparse.ArgumentParser, framework: str):
         argv = cli_parser.parse_args()
         if framework:
             argv.framework = framework
+        argv.feManager = fem
 
         ov_update_message = None
         if not hasattr(argv, 'silent') or not argv.silent:
