@@ -113,13 +113,6 @@ std::map<std::string, std::string> extract_node_metadata(const MKLDNNNodePtr &no
 }  // namespace
 
 InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph) {
-//#define CONSTANT_LAYERS
-#ifdef CONSTANT_LAYERS
-    bool shouldDumpConstantNodes = true;
-#else
-    bool shouldDumpConstantNodes = false;
-#endif
-
     std::map<MKLDNNNodePtr, std::shared_ptr<ngraph::Node> > node2layer;
 
     ngraph::ResultVector results;
@@ -136,7 +129,7 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
             int pr_port = edge->getInputNum();
             auto pr_node = edge->getParent();
 
-            if (shouldDumpConstantNodes) {
+            if (graph.getProperty().shouldDumpConstantNodes == "YES") {
                 ch_port =  edge->getOutputNum();
             } else {
                 if (pr_node->getType() == Input && pr_node->isConstant()) continue;

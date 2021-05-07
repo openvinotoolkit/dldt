@@ -517,7 +517,7 @@ static std::vector<std::pair<std::string, InferenceEngine::InferenceEngineProfil
 
 static UNUSED void printPerformanceCounts(const std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>& performanceMap, std::ostream& stream,
                                           std::string deviceName, bool bshowHeader = true) {
-#define CONSTANT_LAYERS
+//#define CONSTANT_LAYERS
 #ifdef CONSTANT_LAYERS
     bool shouldPrintConstantNodes = true;
 #else
