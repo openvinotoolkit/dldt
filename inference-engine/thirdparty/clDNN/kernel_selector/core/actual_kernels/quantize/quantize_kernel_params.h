@@ -20,15 +20,20 @@ struct quantize_params : public base_params {
     , has_post_shift(true)
     , has_pre_shift(true)
     , has_clamp(true)
+    , has_min_clamp(true)
+    , has_max_clamp(true)
     , per_tensor_input_range(false)
     , per_tensor_input_scale(false)
     , per_tensor_input_shift(false)
+    , per_tensor_output_range(false)
     , per_tensor_output_scale(false)
     , per_tensor_output_shift(false)
     , in_lo(0.0f)
     , in_hi(0.0f)
     , in_scale(0.0f)
     , in_shift(0.0f)
+    , out_lo(0.0f)
+    , out_hi(0.0f)
     , out_scale(0.0f)
     , out_shift(0.0f) { }
 
@@ -39,10 +44,13 @@ struct quantize_params : public base_params {
     bool has_post_shift;
     bool has_pre_shift;
     bool has_clamp;
+    bool has_min_clamp;
+    bool has_max_clamp;
 
     bool per_tensor_input_range;
     bool per_tensor_input_scale;
     bool per_tensor_input_shift;
+    bool per_tensor_output_range;
     bool per_tensor_output_scale;
     bool per_tensor_output_shift;
 
@@ -50,6 +58,8 @@ struct quantize_params : public base_params {
     float in_hi;
     float in_scale;
     float in_shift;
+    float out_lo;
+    float out_hi;
     float out_scale;
     float out_shift;
 
@@ -79,15 +89,20 @@ struct quantize_fuse_params : fuse_params {
                          bool has_post_shift,
                          bool has_pre_shift,
                          bool has_clamp,
+                         bool has_min_clamp,
+                         bool has_max_clamp,
                          bool per_tensor_input_range,
                          bool per_tensor_input_scale,
                          bool per_tensor_input_shift,
+                         bool per_tensor_output_range,
                          bool per_tensor_output_scale,
                          bool per_tensor_output_shift,
                          float in_lo,
                          float in_hi,
                          float in_scale,
                          float in_shift,
+                         float out_lo,
+                         float out_hi,
                          float out_scale,
                          float out_shift)
     : fuse_params(KernelType::QUANTIZE)
@@ -96,15 +111,20 @@ struct quantize_fuse_params : fuse_params {
     , has_post_shift(has_post_shift)
     , has_pre_shift(has_pre_shift)
     , has_clamp(has_clamp)
+    , has_min_clamp(has_min_clamp)
+    , has_max_clamp(has_max_clamp)
     , per_tensor_input_range(per_tensor_input_range)
     , per_tensor_input_scale(per_tensor_input_scale)
     , per_tensor_input_shift(per_tensor_input_shift)
+    , per_tensor_output_range(per_tensor_output_range)
     , per_tensor_output_scale(per_tensor_output_scale)
     , per_tensor_output_shift(per_tensor_output_shift)
     , in_lo(in_lo)
     , in_hi(in_hi)
     , in_scale(in_scale)
     , in_shift(in_shift)
+    , out_lo(out_lo)
+    , out_hi(out_hi)
     , out_scale(out_scale)
     , out_shift(out_shift) {
         size_t index = 0;
@@ -131,10 +151,13 @@ struct quantize_fuse_params : fuse_params {
     bool has_post_shift;
     bool has_pre_shift;
     bool has_clamp;
+    bool has_min_clamp;
+    bool has_max_clamp;
 
     bool per_tensor_input_range;
     bool per_tensor_input_scale;
     bool per_tensor_input_shift;
+    bool per_tensor_output_range;
     bool per_tensor_output_scale;
     bool per_tensor_output_shift;
 
@@ -142,6 +165,8 @@ struct quantize_fuse_params : fuse_params {
     float in_hi;
     float in_scale;
     float in_shift;
+    float out_lo;
+    float out_hi;
     float out_scale;
     float out_shift;
 
