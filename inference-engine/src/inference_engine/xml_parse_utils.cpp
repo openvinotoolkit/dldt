@@ -12,6 +12,23 @@
 
 #include "ie_precision.hpp"
 
+template <typename T>
+bool is_bool_value(const std::string & str, T & val) {
+    std::string tmp;
+    for (const auto ch : str) {
+        tmp += std::tolower(ch);
+    }
+    if (tmp == "true") {
+        val = 1;
+        return true;
+    }
+    if (tmp == "false") {
+        val = 0;
+        return true;
+    }
+    return false;
+}
+
 int XMLParseUtils::GetIntAttr(const pugi::xml_node& node, const char* str) {
     auto attr = node.attribute(str);
     if (attr.empty())
@@ -20,10 +37,11 @@ int XMLParseUtils::GetIntAttr(const pugi::xml_node& node, const char* str) {
     std::string str_value = std::string(attr.value());
     std::size_t idx = 0;
     int int_value = std::stoi(str_value, &idx, 10);
-    if (idx != str_value.length())
-        IE_THROW() << "node <" << node.name() << "> has attribute \"" << str << "\" = \"" << str_value
-                           << "\" which is not an integer"
-                           << " at offset " << node.offset_debug();
+//mnosov: TODO - commented out according to rebase
+//    if (idx != str_value.length())
+//        IE_THROW() << "node <" << node.name() << "> has attribute \"" << str << "\" = \"" << str_value
+//                           << "\" which is not an integer"
+//                           << " at offset " << node.offset_debug();
     return int_value;
 }
 
@@ -65,10 +83,11 @@ unsigned int XMLParseUtils::GetUIntAttr(const pugi::xml_node& node, const char* 
     std::string str_value = std::string(attr.value());
     std::size_t idx = 0;
     long long int_value = std::stoll(str_value, &idx, 10);
-    if (idx != str_value.length() || int_value < 0 || int_value > (std::numeric_limits<unsigned int>::max)())
-        IE_THROW() << "node <" << node.name() << "> has attribute \"" << str << "\" = \"" << str_value
-                           << "\" which is not an unsigned integer"
-                           << " at offset " << node.offset_debug();
+// TODO: mnosov: commented out according to rebase
+//    if (idx != str_value.length() || int_value < 0 || int_value > (std::numeric_limits<unsigned int>::max)())
+//        IE_THROW() << "node <" << node.name() << "> has attribute \"" << str << "\" = \"" << str_value
+//                           << "\" which is not an unsigned integer"
+//                           << " at offset " << node.offset_debug();
     return static_cast<unsigned int>(int_value);
 }
 

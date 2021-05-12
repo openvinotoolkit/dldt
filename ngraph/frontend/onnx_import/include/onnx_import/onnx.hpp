@@ -12,6 +12,12 @@
 
 #include "ngraph/function.hpp"
 #include "utils/onnx_importer_visibility.hpp"
+#include "utils/onnx_internal.hpp"
+
+namespace ONNX_NAMESPACE
+{
+    class ModelProto;
+}
 
 /// \brief              Top level nGraph namespace.
 namespace ngraph
@@ -58,7 +64,7 @@ namespace ngraph
         /// \return     An nGraph function that represents a single output from the created graph.
         ONNX_IMPORTER_API
         std::shared_ptr<Function> import_onnx_model(std::istream& stream,
-                                                    const std::string& model_path = "");
+                                                    const std::string& model_path = "", bool decode_only = false);
 
         /// \brief     Imports and converts an ONNX model from the input file
         ///            to an nGraph Function representation.
@@ -71,7 +77,11 @@ namespace ngraph
         ///
         /// \return    An nGraph function that represents a single output from the created graph.
         ONNX_IMPORTER_API
-        std::shared_ptr<Function> import_onnx_model(const std::string& file_path);
+        std::shared_ptr<Function> import_onnx_model(const std::string& file_path, bool decode_only = false);
+
+
+        ONNX_IMPORTER_API
+        void convert_onnx_nodes (std::shared_ptr<Function> f);
     } // namespace onnx_import
 
 } // namespace ngraph

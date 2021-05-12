@@ -20,7 +20,7 @@ from mo.back.ie_ir_ver_2.emitter import append_ir_info
 from mo.graph.graph import Graph
 from mo.middle.pattern_match import for_graph_and_each_sub_graph_recursively
 from mo.pipeline.common import prepare_emit_ir, get_ir_version
-from mo.pipeline.unified import unified_pipeline
+from mo.pipeline.unified import unified_pipeline, moc_pipeline
 from mo.utils import import_extensions
 from mo.utils.cli_parser import get_placeholder_shapes, get_tuple_values, get_model_name, \
     get_common_cli_options, get_caffe_cli_options, get_tf_cli_options, get_mxnet_cli_options, get_kaldi_cli_options, \
@@ -34,6 +34,8 @@ from mo.utils.model_analysis import AnalysisResults
 from mo.utils.utils import refer_to_faq_msg
 from mo.utils.version import get_version, get_simplified_mo_version, get_simplified_ie_version
 from mo.utils.versions_checker import check_requirements
+
+from ngraph import FrontEndManager
 
 
 def replace_ext(name: str, old: str, new: str):
@@ -88,9 +90,18 @@ def print_argv(argv: argparse.Namespace, is_caffe: bool, is_tf: bool, is_mxnet: 
 def prepare_ir(argv: argparse.Namespace):
     is_tf, is_caffe, is_mxnet, is_kaldi, is_onnx = deduce_framework_by_namespace(argv)
 
+    new_front_ends = []
+    if not argv.use_legacy_frontend:
+        fem = FrontEndManager()
+        new_front_ends = fem.availableFrontEnds()
+        argv.feManager = fem
+
     if not any([is_tf, is_caffe, is_mxnet, is_kaldi, is_onnx]):
-        raise Error('Framework {} is not a valid target. Please use --framework with one from the list: caffe, tf, '
-                    'mxnet, kaldi, onnx. ' + refer_to_faq_msg(15), argv.framework)
+        frameworks = ['tf', 'caffe', 'mxnet', 'kaldi', 'onnx']
+        frameworks = list(set(frameworks + new_front_ends))
+        if argv.framework not in frameworks:
+            raise Error('Framework {} is not a valid target. Please use --framework with one from the list: {}. ' +
+                        refer_to_faq_msg(15), argv.framework, frameworks)
 
     if is_tf and not argv.input_model and not argv.saved_model_dir and not argv.input_meta_graph:
         raise Error('Path to input model or saved model dir is required: use --input_model, --saved_model_dir or '
@@ -234,18 +245,23 @@ def prepare_ir(argv: argparse.Namespace):
         t.send_event('mo', 'framework', 'kaldi')
         from mo.front.kaldi.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
-    elif is_onnx:
+    elif is_onnx and ('onnx' not in new_front_ends or argv.use_legacy_frontend):
         t.send_event('mo', 'framework', 'onnx')
         from mo.front.onnx.register_custom_ops import get_front_classes
         import_extensions.load_dirs(argv.framework, extensions, get_front_classes)
-    graph = unified_pipeline(argv)
+
+    if argv.framework not in new_front_ends or argv.use_legacy_frontend:
+        graph = unified_pipeline(argv)
+    else:
+        graph = moc_pipeline(argv)
     return graph
 
 
-def emit_ir(graph: Graph, argv: argparse.Namespace):
-    NormalizeTI().find_and_replace_pattern(graph)
-    for_graph_and_each_sub_graph_recursively(graph, RemoveConstOps().find_and_replace_pattern)
-    for_graph_and_each_sub_graph_recursively(graph, CreateConstNodesReplacement().find_and_replace_pattern)
+def emit_ir(graph, argv: argparse.Namespace):
+    if 'network' not in graph.graph:
+        NormalizeTI().find_and_replace_pattern(graph)
+        for_graph_and_each_sub_graph_recursively(graph, RemoveConstOps().find_and_replace_pattern)
+        for_graph_and_each_sub_graph_recursively(graph, CreateConstNodesReplacement().find_and_replace_pattern)
 
     mean_data = deepcopy(graph.graph['mf']) if 'mf' in graph.graph else None
     input_names = deepcopy(graph.graph['input_names']) if 'input_names' in graph.graph else []
@@ -266,6 +282,10 @@ def emit_ir(graph: Graph, argv: argparse.Namespace):
         output_dir = argv.output_dir if argv.output_dir != '.' else os.getcwd()
         orig_model_name = os.path.normpath(os.path.join(output_dir, argv.model_name))
 
+        if 'network' in graph.graph:
+            graph.graph['network'].serialize(orig_model_name + ".xml", orig_model_name + ".bin")
+            print('[ SUCCESS ] Converted with ONNX Importer')
+        
         return_code = "not executed"
         # This try-except is additional reinsurance that the IE
         # dependency search does not break the MO pipeline

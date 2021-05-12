@@ -143,12 +143,15 @@ def get_module_version_list_from_file(file_name, env_setup):
     [('tensorflow', '>=', '1.2.0'), ('networkx', '==', '2.1'), ('numpy', None, None)]
     """
     req_dict = []
-    with open(file_name) as f:
-        for line in f:
-            # handle comments
-            line = line.split('#')[0]
+    try:
+        with open(file_name) as f:
+            for line in f:
+                # handle comments
+                line = line.split('#')[0]
 
-            req_dict = parse_and_filter_versions_list(line, req_dict, env_setup)
+                req_dict = parse_and_filter_versions_list(line, req_dict, env_setup)
+    except FileNotFoundError:
+        log.warning("No file with name {} that contains requirements for selected framework was found".format(file_name))
     return req_dict
 
 

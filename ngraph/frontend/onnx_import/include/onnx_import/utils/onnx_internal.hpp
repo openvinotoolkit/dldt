@@ -21,6 +21,10 @@ namespace ngraph
     {
         namespace detail
         {
+            ONNX_IMPORTER_API
+            std::shared_ptr<Function>
+            convert_to_ng_function(std::shared_ptr<ONNX_NAMESPACE::ModelProto> model_proto, bool decode_only);
+
             /// \brief      Imports and converts an serialized ONNX model from a ModelProto
             ///             to an nGraph Function representation.
             ///
@@ -37,8 +41,8 @@ namespace ngraph
             /// \return     An nGraph function that represents a single output from the created
             /// graph.
             ONNX_IMPORTER_API
-            std::shared_ptr<Function> import_onnx_model(ONNX_NAMESPACE::ModelProto& model_proto,
-                                                        const std::string& model_path);
+            std::shared_ptr<Function> import_onnx_model(std::shared_ptr<ONNX_NAMESPACE::ModelProto> model_proto,
+                                                        const std::string& model_path, bool decode_only);
         } // namespace detail
     }     // namespace onnx_import
 } // namespace ngraph

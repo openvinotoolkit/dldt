@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 #include <ngraph/variant.hpp>
+#include <assert.h>
 #include "ngraph/ops.hpp"
 #include "ngraph/opsets/opset.hpp"
 #include "ngraph/opsets/opset1.hpp"
@@ -502,6 +503,7 @@ std::string get_opset_name(
 std::string get_precision_name(const ngraph::element::Type & elem_type) {
     switch (elem_type) {
     case ::ngraph::element::Type_t::undefined:
+    case ::ngraph::element::Type_t::dynamic:
         return "UNSPECIFIED";
     case ::ngraph::element::Type_t::f16:
         return "FP16";
@@ -542,17 +544,6 @@ std::string get_precision_name(const ngraph::element::Type & elem_type) {
     }
 }
 
-std::string escape_delim(const std::string& name, const char delim = ',') {
-    std::string result_name = name;
-    const std::string escaped_delim = std::string("\\") + delim;
-    size_t index = result_name.find(delim, 0);
-    while (index != std::string::npos) {
-        result_name.replace(index, 1, escaped_delim);
-        index = result_name.find(delim, index + 2);
-    }
-    return result_name;
-}
-
 std::string generate_unique_name(
     const std::unordered_set<std::string>& unique_names, std::string base_name,
     int suffix) {
@@ -563,6 +554,17 @@ std::string generate_unique_name(
         suffix++;
         return generate_unique_name(unique_names, base_name, suffix);
     }
+}
+
+std::string escape_delim(const std::string& name, const char delim = ',') {
+    std::string result_name = name;
+    const std::string escaped_delim = std::string("\\") + delim;
+    size_t index = result_name.find(delim, 0);
+    while (index != std::string::npos) {
+        result_name.replace(index, 1, escaped_delim);
+        index = result_name.find(delim, index + 2);
+    }
+    return result_name;
 }
 
 // TODO: remove when CNNNetwork will be supporting not-unique names
@@ -721,9 +723,6 @@ void ngfunction_2_irv10(pugi::xml_node& netXml,
         if (node->get_input_size() > 0) {
             pugi::xml_node input = layer.append_child("input");
             for (const auto & i : node->inputs()) {
-                NGRAPH_CHECK(i.get_partial_shape().is_static(),
-                             "Unsupported dynamic input shape in ", node);
-
                 // WA for LSTMCellv0, peephole input shall not be serialized
                 if (i.get_index() == 6 && dynamic_cast<opset1::LSTMCell *>(node)) {
                     port_id++;
@@ -734,10 +733,10 @@ void ngfunction_2_irv10(pugi::xml_node& netXml,
                 port.append_attribute("id").set_value(port_id++);
                 port.append_attribute("precision")
                         .set_value(get_precision_name(i.get_element_type()).c_str());
-                for (auto d : i.get_shape()) {
+                for (auto d : std::vector<Dimension>(i.get_partial_shape())) {
                     pugi::xml_node dim = port.append_child("dim");
                     dim.append_child(pugi::xml_node_type::node_pcdata)
-                        .set_value(std::to_string(d).c_str());
+                        .set_value(std::to_string(d.get_max_length()).c_str());
                 }
             }
 
@@ -765,10 +764,10 @@ void ngfunction_2_irv10(pugi::xml_node& netXml,
                 if (!names.empty()) {
                     port.append_attribute("names").set_value(names.c_str());
                 }
-                for (auto d : o.get_shape()) {
+                for (auto d : std::vector<Dimension>(o.get_partial_shape())) {
                     pugi::xml_node dim = port.append_child("dim");
                     dim.append_child(pugi::xml_node_type::node_pcdata)
-                        .set_value(std::to_string(d).c_str());
+                        .set_value(std::to_string(d.get_max_length()).c_str());
                 }
             }
             if (node_type_name == "TensorIterator" || node_type_name == "Loop") {

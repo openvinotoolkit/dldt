@@ -10,10 +10,12 @@
 #include "ngraph/log.hpp"
 #include "onnx_common/parser.hpp"
 #include "onnx_common/utils.hpp"
+#include "onnx_editor/edge_mapper.hpp"
 #include "onnx_editor/editor.hpp"
 #include "onnx_import/utils/onnx_internal.hpp"
 
 using namespace ngraph;
+using namespace ngraph::onnx_editor;
 
 namespace
 {
@@ -185,12 +187,17 @@ namespace
 /// \brief A helper class used to hold the ModelProto object as its field
 struct onnx_editor::ONNXModelEditor::Impl
 {
-    ONNX_NAMESPACE::ModelProto m_model_proto;
+    std::shared_ptr<ONNX_NAMESPACE::ModelProto> m_shared_model_proto;
+    // leave this member here as a reference to avoid modifying a lot of code
+    // TODO: reimplement it
+    ONNX_NAMESPACE::ModelProto& m_model_proto = *m_shared_model_proto;
+    EdgeMapper m_edge_mapper;
+    bool m_is_mapper_updated = false;
 
     Impl() = delete;
 
     Impl(const std::string& model_path)
-        : m_model_proto{std::move(onnx_common::parse_from_file(model_path))}
+        : m_shared_model_proto(std::make_shared<ONNX_NAMESPACE::ModelProto>(std::move(onnx_common::parse_from_file(model_path))))
     {
     }
 
@@ -202,6 +209,11 @@ onnx_editor::ONNXModelEditor::ONNXModelEditor(const std::string& model_path)
     : m_model_path{model_path}
     , m_pimpl{new ONNXModelEditor::Impl{model_path}, [](Impl* impl) { delete impl; }}
 {
+}
+
+std::shared_ptr<ONNX_NAMESPACE::ModelProto> onnx_editor::ONNXModelEditor::model() const
+{
+    return m_pimpl->m_shared_model_proto;
 }
 
 const std::string& onnx_editor::ONNXModelEditor::model_path() const
@@ -285,6 +297,7 @@ void onnx_editor::ONNXModelEditor::cut_graph_fragment(const std::vector<InputEdg
     editor.extract_subgraph(outputs);
 
     m_pimpl->remove_shape_inference_info();
+    m_pimpl->m_is_mapper_updated = false;
 }
 
 std::vector<std::string> onnx_editor::ONNXModelEditor::model_inputs() const
@@ -314,7 +327,7 @@ std::string onnx_editor::ONNXModelEditor::model_string() const
 
 std::shared_ptr<Function> onnx_editor::ONNXModelEditor::get_function() const
 {
-    return onnx_import::detail::import_onnx_model(m_pimpl->m_model_proto, m_model_path);
+    return onnx_import::detail::import_onnx_model(m_pimpl->m_shared_model_proto, m_model_path, false);
 }
 
 void onnx_editor::ONNXModelEditor::set_input_values(
@@ -344,3 +357,119 @@ void onnx_editor::ONNXModelEditor::set_input_values(
         modify_initializer(*onnx_initializer, name, values, onnx_input);
     }
 }
+
+#if 0
+namespace {
+    const auto is_equal_to =
+            +[](const std::string& other) { return [&](const std::string& s) { return s == other; }; };
+}
+
+int onnx_editor::ONNXModelEditor::find_producing_node_idx(const std::string& tensorName) const
+{
+
+    const auto& graph = m_pimpl->m_model_proto.graph();
+    for (int i = 0; i < graph.node_size(); ++i)
+    {
+        const auto& outputs = graph.node(i).output();
+        const auto output_found =
+                std::any_of(std::begin(outputs), std::end(outputs), is_equal_to(tensorName));
+
+        if (output_found)
+        {
+            return i;
+        }
+    }
+
+    throw ngraph::ngraph_error{"Source node not found in the graph for tensor name: " +
+                               tensorName};
+}
+#endif
+
+
+std::vector<InputEdge> onnx_editor::ONNXModelEditor::find_consuming_input_edges(const std::string& tensorName) const {
+    std::cout << "[ WARNING ] Used an extension to ONNX Editor\n";
+    const auto &graph = m_pimpl->m_model_proto.graph();
+    std::vector<InputEdge> result;
+    for (int i = 0; i < graph.node_size(); ++i) {
+        const auto &inputs = graph.node(i).input();
+        size_t candidate_count = 0;
+        for(int input_index = 0; input_index < inputs.size(); ++input_index)
+        {
+            if(inputs[input_index] == tensorName) {
+                // TODO: What if a node consume the same tensor on multiple input ports? They cannot be differentiated with InputEdge
+                result.push_back(InputEdge(i, tensorName));
+                ++candidate_count;
+            }
+        }
+        NGRAPH_CHECK(candidate_count <= 1, "Operation node consumes the same tensor on multiple ports; currently unsupported");
+    }
+    return result;
+}
+
+#if 0
+bool onnx_editor::ONNXModelEditor::validate_tensor_name(const std::string& tensorName) const {
+    const auto &graph = m_pimpl->m_model_proto.graph();
+    for (int i = 0; i < graph.node_size(); ++i) {
+        const auto &outputs = graph.node(i).output();
+        const auto output_found =
+                std::any_of(std::begin(outputs), std::end(outputs), is_equal_to(tensorName));
+
+        if (output_found) {
+            return true;
+        }
+
+        const auto &inputs = graph.node(i).input();
+        const auto input_found =
+                std::any_of(std::begin(inputs), std::end(inputs), is_equal_to(tensorName));
+
+        if (input_found) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif
+
+
+void onnx_editor::ONNXModelEditor::update_mapper_if_needed() const
+{
+    if (!m_pimpl->m_is_mapper_updated)
+    {
+        m_pimpl->m_edge_mapper = EdgeMapper(m_pimpl->m_model_proto.graph());
+    }
+    m_pimpl->m_is_mapper_updated = true;
+}
+
+InputEdge onnx_editor::ONNXModelEditor::find_input_edge(const EditorNode& node,
+                                                        const EditorInput& input) const
+{
+    update_mapper_if_needed();
+    return m_pimpl->m_edge_mapper.find_input_edge(node, input);
+}
+
+OutputEdge onnx_editor::ONNXModelEditor::find_output_edge(const EditorNode& node,
+                                                          const EditorOutput& input) const
+{
+    update_mapper_if_needed();
+    return m_pimpl->m_edge_mapper.find_output_edge(node, input);
+}
+
+OutputEdge onnx_editor::ONNXModelEditor::find_output_edge(const std::string& output_name) const
+{
+    update_mapper_if_needed();
+    return m_pimpl->m_edge_mapper.find_output_edge(output_name);
+}
+
+std::vector<InputEdge>
+    onnx_editor::ONNXModelEditor::find_output_consumers(const std::string& output_name) const
+{
+    update_mapper_if_needed();
+    return m_pimpl->m_edge_mapper.find_output_consumers(output_name);
+}
+
+bool onnx_editor::ONNXModelEditor::is_correct_and_unambiguous_node(const EditorNode& node) const
+{
+    update_mapper_if_needed();
+    return m_pimpl->m_edge_mapper.is_correct_and_unambiguous_node(node);
+}
+

@@ -130,7 +130,6 @@ int main(int argc, char* argv[]) {
         DataPtr output_info = network.getOutputsInfo().begin()->second;
         std::string output_name = network.getOutputsInfo().begin()->first;
 
-        output_info->setPrecision(Precision::FP32);
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- Step 4. Loading a model to the device
