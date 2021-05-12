@@ -46,7 +46,10 @@
 namespace cldnn {
 
 network::network(program const& program, uint16_t stream_id)
-    : _impl(network_impl::allocate_network(program.get()->get_engine(), program.get(), false, stream_id == 0)) {}
+    : _impl(network_impl::allocate_network(program.get()->get_engine().create_stream(), program.get(), false, stream_id == 0)) {}
+
+network::network(program const& program, stream::ptr stream, uint16_t stream_id)
+    : _impl(network_impl::allocate_network(stream, program.get(), false, stream_id == 0)) {}
 
 engine& network::get_engine() const {
     return _impl->get_engine();

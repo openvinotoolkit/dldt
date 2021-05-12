@@ -60,7 +60,9 @@ struct network {
     /// @param program The program object which contains compiled primitives this network should allocate memory for.
     /// @param stream_id Stream ID of this network. 0 is for primary stream, the others are secondary.
     /// Used to determine whether an extra copy of primitive's memory needed.
-    explicit network(program const& program, uint16_t stream_id);
+    network(program const& program, uint16_t stream_id);
+
+    network(program const& program, stream::ptr stream, uint16_t stream_id);
 
     /// @brief Constructs network object from implicitly created program object. This is a shorthand for network(program(engine, topology, options))
     /// @param engine

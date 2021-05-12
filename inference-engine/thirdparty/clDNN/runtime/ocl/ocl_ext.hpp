@@ -700,7 +700,7 @@ typedef CL_API_ENTRY cl_mem(CL_API_CALL * PFN_clCreateFromMediaSurfaceINTEL)(
     public:
         CommandQueueIntel() : CommandQueue() {}
         explicit CommandQueueIntel(const CommandQueue &other) : CommandQueue(other) {}
-        explicit CommandQueueIntel(const cl_command_queue &other) : CommandQueue(other) {}
+        explicit CommandQueueIntel(const cl_command_queue &other, bool retainObject = false) : CommandQueue(other, retainObject) {}
 
         cl_int enqueueCopyUsm(
             const UsmMemory& src,

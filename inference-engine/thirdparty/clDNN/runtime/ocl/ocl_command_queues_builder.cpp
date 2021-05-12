@@ -67,7 +67,7 @@ ocl_queue_type command_queues_builder::build(const cl::Context& context, const c
                                                 properties,
                                                 0};
 
-        queue = ocl_queue_type(clCreateCommandQueueWithProperties(context.get(), device.get(), properties_low, &error_code));
+        queue = ocl_queue_type(clCreateCommandQueueWithProperties(context.get(), device.get(), properties_low, &error_code), false);
     } else if (_priority_mode != priority_mode_types::disabled) {
         cl_queue_properties properties_low[] = {CL_QUEUE_PRIORITY_KHR,
                                                 cl_queue_priority_value,
@@ -75,7 +75,7 @@ ocl_queue_type command_queues_builder::build(const cl::Context& context, const c
                                                 properties,
                                                 0};
 
-        queue = ocl_queue_type(clCreateCommandQueueWithProperties(context.get(), device.get(), properties_low, &error_code));
+        queue = ocl_queue_type(clCreateCommandQueueWithProperties(context.get(), device.get(), properties_low, &error_code), false);
     } else if (_throttle_mode != throttle_mode_types::disabled) {
         cl_queue_properties properties_low[] = {CL_QUEUE_THROTTLE_KHR,
                                                 cl_queue_throttle_value,
@@ -83,7 +83,7 @@ ocl_queue_type command_queues_builder::build(const cl::Context& context, const c
                                                 properties,
                                                 0};
 
-        queue = ocl_queue_type(clCreateCommandQueueWithProperties(context.get(), device.get(), properties_low, &error_code));
+        queue = ocl_queue_type(clCreateCommandQueueWithProperties(context.get(), device.get(), properties_low, &error_code), false);
     }
 
     if (error_code != CL_SUCCESS) {

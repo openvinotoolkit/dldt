@@ -71,8 +71,8 @@ Condition primitive is resuing memory with the input.
 */
 condition_inst::typed_primitive_inst(network_impl& network, condition_node const& node)
     : parent(network, node),
-      _net_true(network_impl::allocate_network(node.get_program().get_engine(), node.get_branch_true(), true)),
-      _net_false(network_impl::allocate_network(node.get_program().get_engine(), node.get_branch_false(), true)) {
+      _net_true(network_impl::allocate_network(node.get_program().get_engine().create_stream(), node.get_branch_true(), true)),
+      _net_false(network_impl::allocate_network(node.get_program().get_engine().create_stream(), node.get_branch_false(), true)) {
     auto compare_tensor = node.compare().get_output_layout().size;
     auto input_tensor = node.input().get_output_layout().size;
     CLDNN_ERROR_TENSOR_SIZES_GREATER_THAN(node.id(),

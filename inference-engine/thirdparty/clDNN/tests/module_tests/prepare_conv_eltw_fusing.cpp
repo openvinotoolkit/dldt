@@ -75,7 +75,7 @@ std::map<primitive_id, network_output> test_prepare_conv_eltw_fusing(bool eltw1,
     program_impl_wrapper::prepare_memory_dependencies(*prog);
     program_impl_wrapper::compile(*prog);
     program_impl_wrapper::init_kernels(*prog);
-    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine, prog);
+    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine.create_stream(), prog);
     network network(net);
     network.set_input_data("input", input);
 

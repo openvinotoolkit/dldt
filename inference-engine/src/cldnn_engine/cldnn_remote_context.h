@@ -44,8 +44,8 @@ public:
     explicit CLDNNRemoteBlobImpl(InferenceEngine::gpu::ClContext::Ptr context,
                                  cldnn::stream& stream,
                                  const cldnn::layout& layout,
-                                 cldnn::shared_handle mem,
-                                 cldnn::shared_surface surf,
+                                 cldnn::shared_handle mem = nullptr,
+                                 cldnn::shared_surface surf = 0,
                                  uint32_t plane = 0,
                                  BlobType mem_type = BT_BUF_INTERNAL);
 
@@ -99,10 +99,10 @@ public:
                                   cldnn::stream& stream,
                                   const InferenceEngine::TensorDesc& desc,
                                   const cldnn::layout& layout,
-                                  cldnn::shared_handle mem,
-                                  cldnn::shared_surface surf,
-                                  uint32_t plane,
-                                  CLDNNRemoteBlobImpl::BlobType mem_type)
+                                  cldnn::shared_handle mem = nullptr,
+                                  cldnn::shared_surface surf = 0,
+                                  uint32_t plane = 0,
+                                  CLDNNRemoteBlobImpl::BlobType mem_type = CLDNNRemoteBlobImpl::BlobType::BT_BUF_INTERNAL)
         : _impl(context, stream, layout, mem, surf, plane, mem_type)
         , TpublicAPI(desc) {}
 
@@ -184,7 +184,7 @@ public:
     * @brief Maps handle to heap memory accessible by any memory manipulation routines.
     * @return Generic pointer to memory
     */
-    void* lock(void* handle, InferenceEngine::LockOp = InferenceEngine::LOCK_FOR_WRITE)  noexcept override { return nullptr; };
+    void* lock(void* handle, InferenceEngine::LockOp = InferenceEngine::LOCK_FOR_WRITE) noexcept override { return handle; };
     /**
     * @brief Unmaps memory by handle with multiple sequential mappings of the same handle.
     * The multiple sequential mappings of the same handle are suppose to get the same
@@ -224,6 +224,7 @@ public:
     std::shared_ptr<cldnn::engine> GetEngine() const { return m_engine; }
     Config& GetConfig() { return m_config; }
     ContextType GetType() const { return m_type; }
+    std::vector<InferenceEngine::gpu_handle_param> GetExternalQueues() const { return m_external_queues; }
     const std::weak_ptr<InferenceEngine::IInferencePlugin> GetPlugin() const { return m_plugin; }
 
     void acquire_lock() {
@@ -237,6 +238,7 @@ public:
 protected:
     // TODO: refactor to unique_ptr
     std::shared_ptr<cldnn::engine> m_engine;
+    std::vector<InferenceEngine::gpu_handle_param> m_external_queues;
     InferenceEngine::gpu_handle_param m_va_display;
     Config m_config;
 

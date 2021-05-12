@@ -321,8 +321,10 @@ event::ptr gpu_usm::copy_from(stream& stream, const memory& other) {
     return stream.create_user_event(true);
 }
 
-event::ptr gpu_usm::copy_from(stream& /* stream */, const void* /* host_ptr */) {
-    throw std::runtime_error("[clDNN] copy_from is not implemented for gpu_usm");
+event::ptr gpu_usm::copy_from(stream& stream, const void* host_ptr) {
+    auto& cl_stream = downcast<const ocl_stream>(stream);
+    cl::usm::enqueue_memcpy(cl_stream.get_cl_queue(), get_buffer().get(), host_ptr, _bytes_count, true);
+    return stream.create_user_event(true);
 }
 
 shared_mem_params gpu_usm::get_internal_params() const {
