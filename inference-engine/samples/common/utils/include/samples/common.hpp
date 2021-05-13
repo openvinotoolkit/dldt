@@ -534,7 +534,7 @@ static UNUSED void printPerformanceCounts(const std::map<std::string, InferenceE
 
     for (const auto& it : performanceMapSorted) {
         if (!shouldPrintConstantNodes) {
-            if (std::string(it.second.layer_type) == "Const")
+            if ((it.first.find("Constant_") != std::string::npos) || (std::string(it.second.layer_type) == "Constant"))
                 continue;
         }
 
