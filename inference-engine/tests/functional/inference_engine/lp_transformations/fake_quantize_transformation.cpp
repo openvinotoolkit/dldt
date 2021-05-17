@@ -47,8 +47,10 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<float>& valu
 
 inline std::ostream& operator<<(std::ostream& out, const FakeQuantizeTransformationTestValues& testValue) {
     return out << "_" <<
-        testValue.actual.constantShape << "_" << testValue.actual.outputLowValues << "_" << testValue.actual.outputHighValues << "_" <<
-        testValue.expected.constantShape << "_" << testValue.expected.outputLowValues << "_" << testValue.expected.outputHighValues;;
+        testValue.actual.constantShape << "_" << testValue.actual.quantizationLevel << "_" <<
+        testValue.actual.outputLowValues << "_" << testValue.actual.outputHighValues << "_" <<
+        testValue.expected.constantShape << "_" << testValue.actual.quantizationLevel << "_" <<
+        testValue.expected.outputLowValues << "_" << testValue.expected.outputHighValues;
 }
 
 typedef std::tuple<
@@ -214,7 +216,29 @@ const std::vector<FakeQuantizeTransformationTestValues> fakeQuantizeTransformati
             { ngraph::element::f32, {{ngraph::element::f32}, { }, { 1e-32f }} },
             { ngraph::element::f16, {{ngraph::element::f16}, { }, { 1e-32f }} }
         }
-    }
+    },
+    // u4 through u8
+    {
+        LayerTransformation::createParamsU8I8(),
+        { 16ul, {}, { 0.f }, { 2.55f }, { 0.f }, { 2.55f } },
+        { 256ul, {}, { 0.f }, { 2.55f }, { 0.f }, { 255.f } },
+        ngraph::element::u8,
+        {
+                { ngraph::element::f32, { {ngraph::element::f32}, {}, { 0.01f }} },
+                { ngraph::element::f16, { {ngraph::element::f16}, {}, { 0.01f }} }
+        }
+    },
+    // i4 through i8
+    {
+        LayerTransformation::createParamsI8I8(),
+        { 16ul, {}, { -1.28f }, { 1.27f }, { -1.28f }, { 1.27f } },
+        { 256ul, {}, { -1.28f }, { 1.27f }, { -128.f }, { 127.f } },
+        ngraph::element::i8,
+        {
+                { ngraph::element::f32, {{ngraph::element::f32}, { }, { 0.01f }} },
+                { ngraph::element::f16, {{ngraph::element::f16}, { }, { 0.01f }} }
+        }
+    },
 };
 
 const std::vector<ngraph::Shape> shapes = {

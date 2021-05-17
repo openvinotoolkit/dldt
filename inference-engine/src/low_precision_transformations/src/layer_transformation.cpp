@@ -32,6 +32,7 @@ LayerTransformation::LayerTransformation(const Params& params) :
     precisionsOnWeights(params.precisionsOnWeights),
     deqPrecision(params.deqPrecision),
     support3DTensorOnActivations(params.support3DTensorOnActivations),
+    changeFakeQuantizeLevelsFrom16to256(params.changeFakeQuantizeLevelsFrom16to256),
     quantizationIntervalAsymmetryThreshold(0.002f),
     zeroThreshold(1.e-6f),
     minQuantizationLevels(2ul),

@@ -24,6 +24,11 @@ bool FakeQuantizeDecompositionTransformation::transform(TransformationContext& c
         return false;
     }
 
+    // workaround: infer i4/u4 through i8/u8
+    if (changeFakeQuantizeLevelsFrom16to256 && (layer->get_levels() == 16ul)) {
+        layer->set_levels(256ul);
+    }
+
     layer = NetworkHelper::fuseConvert(layer);
     if (NetworkHelper::isConstantPath(layer)) {
         // fold fq if constant just before fq and child layers aren't supported in LPT
