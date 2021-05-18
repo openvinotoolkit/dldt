@@ -358,7 +358,7 @@ class ScaleFactorPerLayer<InferenceEngine::CNNLayer *> {
             auto absMin = std::min(std::abs(minOutValue), std::abs(maxOutValue));
 
             result = (quantizedParams->_dst_quant.GetLevels() - 1) / (maxOutValue - minOutValue);
-            if (0 && fp32eq(absMin, 0.0f) && !fp32eq(absMax, 0.0f)) {
+            if (fp32eq(absMin, 0.0f) && !fp32eq(absMax, 0.0f)) {
                 result = (quantizedParams->_dst_quant.GetLevels() - 1) / (2 * absMax);
             }
             //
@@ -948,7 +948,7 @@ class ScaleFactorPerLayer<InferenceEngine::ConcatLayer*> {
                     gnalog() << "[UFS] from : " << concatLayer->name << " reached: " << layer->name;
                     // found that direct input to concat is a indirect parent of align filter - so no link required
                     auto info = LayerInfo(layer);
-                    if (!info.isWeightable() && !info.isActivation() && !info.isConst()) {
+                    if (!info.isWeightable() && !info.isActivation() && !info.isConst() && !info.isMemory()) {
                         gnalog() << "... skipped\n";
                         return;
                     }
@@ -1000,7 +1000,7 @@ class ScaleFactorPerLayer<InferenceEngine::ConcatLayer*> {
                 }
 
                 quantDataForConCatInput->_dst_quant.SetScale(newScaleFactor);
-            } else if (restarLayerInfo.isConst()) {
+            } else if (restarLayerInfo.isConst() || restarLayerInfo.isMemory()) {
                 gnalog() << "... warning const layer will be requantized\n";
                 quantDataForConCatInput->_src_quant.SetScale(sourceQuantParams->_dst_quant.GetScale());
                 quantDataForConCatInput->_dst_quant.SetScale(sourceQuantParams->_dst_quant.GetScale());
