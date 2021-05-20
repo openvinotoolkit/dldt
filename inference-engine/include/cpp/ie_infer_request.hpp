@@ -144,6 +144,8 @@ public:
      */
     void SetBatch(const int batch);
 
+    void SetShape(const std::string &name, const SizeVector& dims);
+
     /**
      * @brief Start inference of specified input(s) in asynchronous mode
      *

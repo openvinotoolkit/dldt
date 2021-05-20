@@ -377,11 +377,11 @@ int main(int argc, char* argv[]) {
             batchSize = cnnNetwork.getBatchSize();
             // Parse input shapes if specified
             bool reshape = false;
-            app_inputs_info = getInputsInfo<InputInfo::Ptr>(FLAGS_shape, FLAGS_layout, FLAGS_b, inputInfo, reshape);
+            app_inputs_info = getInputsInfo<InputInfo::Ptr>(FLAGS_shape, FLAGS_layout, FLAGS_b, FLAGS_blob_shape, inputInfo, reshape);
             if (reshape) {
-                InferenceEngine::ICNNNetwork::InputShapes shapes = {};
+                InferenceEngine::ICNNNetwork::InputPartialShapes shapes = {};
                 for (auto& item : app_inputs_info)
-                    shapes[item.first] = item.second.shape;
+                    shapes[item.first] = item.second.partialShape;
                 slog::info << "Reshaping network: " << getShapesString(shapes) << slog::endl;
                 startTime = Time::now();
                 cnnNetwork.reshape(shapes);
@@ -438,7 +438,7 @@ int main(int argc, char* argv[]) {
             slog::info << "Import network took " << duration_ms << " ms" << slog::endl;
             if (statistics)
                 statistics->addParameters(StatisticsReport::Category::EXECUTION_RESULTS, {{"import network time (ms)", duration_ms}});
-            app_inputs_info = getInputsInfo<InputInfo::CPtr>(FLAGS_shape, FLAGS_layout, FLAGS_b, exeNetwork.GetInputsInfo());
+            app_inputs_info = getInputsInfo<InputInfo::CPtr>(FLAGS_shape, FLAGS_layout, FLAGS_b, FLAGS_blob_shape, exeNetwork.GetInputsInfo());
             if (batchSize == 0) {
                 batchSize = 1;
             }
@@ -623,6 +623,16 @@ int main(int argc, char* argv[]) {
 
         // wait the latest inference executions
         inferRequestsQueue.waitAll();
+
+        const auto outputs = exeNetwork.GetOutputsInfo();
+        // Touch all outputs
+        for (auto request : inferRequestsQueue.requests) {
+            for (auto output : outputs) {
+                auto outBlob = request->getBlob(output.first);
+                std::cout << "Acquired output blob " << output.first << " with shape: " << outBlob->getTensorDesc().getPartialShape()
+                          << " [ dynamic: " << output.second->getTensorDesc().getPartialShape() << " ]" << '\n';
+            }
+        }
 
         double latency = getMedianValue<double>(inferRequestsQueue.getLatencies());
         double totalDuration = inferRequestsQueue.getDurationInMilliseconds();
