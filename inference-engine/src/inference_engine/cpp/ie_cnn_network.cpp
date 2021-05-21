@@ -98,6 +98,23 @@ void CNNNetwork::addOutput(const std::string& layerName, size_t outputIndex) {
     CALL_STATUS_FNC(addOutput, layerName, outputIndex);
 }
 
+ICNNNetwork::InputPartialShapes CNNNetwork::getInputPartialShapes() const {
+    if (actual == nullptr) IE_THROW() << "CNNNetwork was not initialized.";
+    ICNNNetwork::InputPartialShapes shapes;
+    InputsDataMap inputs;
+    actual->getInputsInfo(inputs);
+    for (const auto& pair : inputs) {
+        auto info = pair.second;
+        if (info) {
+            auto data = info->getInputData();
+            if (data) {
+                shapes[data->getName()] = data->getTensorDesc().getPartialShape();
+            }
+        }
+    }
+    return shapes;
+}
+
 ICNNNetwork::InputShapes CNNNetwork::getInputShapes() const {
     if (actual == nullptr) IE_THROW() << "CNNNetwork was not initialized.";
     ICNNNetwork::InputShapes shapes;
@@ -127,6 +144,10 @@ std::string CNNNetwork::getOVNameForTensor(const std::string& orig_name) const {
     std::string ov_name;
     CALL_STATUS_FNC(getOVNameForTensor, ov_name, orig_name);
     return ov_name;
+}
+
+void CNNNetwork::reshape(const ICNNNetwork::InputPartialShapes& inputShapes) {
+    CALL_STATUS_FNC(reshape, inputShapes);
 }
 
 }  // namespace InferenceEngine
