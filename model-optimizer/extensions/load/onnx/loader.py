@@ -8,10 +8,15 @@ from __future__ import unicode_literals
 
 import logging as log
 
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+from onnx.numpy_helper import to_array
+
 from extensions.load.loader import Loader
+from mo.front.common.partial_infer.utils import int64_array
 from mo.front.common.register_custom_ops import update_extractors_with_extensions, check_for_duplicates
 from mo.front.extractor import extract_node_attrs
 from mo.front.onnx.extractor import onnx_op_extractor, onnx_op_extractors
+from mo.front.onnx.extractors.utils import onnx_attr
 from mo.front.onnx.loader import load_onnx_model, protobuf2nx
 from mo.graph.graph import Graph
 from mo.utils.error import Error
@@ -33,7 +38,6 @@ class ONNXLoader(Loader):
         log.debug("Number of initializers in graph_def: {}".format(len(model_graph.initializer)))
         log.debug(
             "Number of real inputs in graph_def: {}".format(len(model_graph.input) - len(model_graph.initializer)))
-        update_extractors_with_extensions(onnx_op_extractors)
 
         try:
             protobuf2nx(graph, model_proto)
@@ -58,4 +62,16 @@ class ONNXLoader(Loader):
             graph.graph['fw_opset_version'] = None
 
         graph.check_empty_graph('protobuf2nx. It may happen due to problems with loaded model')
+
+
+class ONNXExtractor(Loader):
+    id = 'ONNXExtractor'
+    enabled = True
+
+    def run_after(self):
+        return [ONNXLoader]
+
+    def load(self, graph: Graph):
+        update_extractors_with_extensions(onnx_op_extractors)
         extract_node_attrs(graph, lambda node: onnx_op_extractor(node, check_for_duplicates(onnx_op_extractors)))
+
