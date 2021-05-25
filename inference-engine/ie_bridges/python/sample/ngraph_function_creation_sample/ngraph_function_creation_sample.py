@@ -70,43 +70,31 @@ def create_ngraph_function(args: argparse.Namespace) -> ngraph.impl.Function:
     input_shape = [64, 1, 28, 28]
     param_node = ngraph.parameter(input_shape, np.float32, 'Parameter')
 
-    # convolution 1
     conv_1_kernel_shape, conv_1_kernel_length = shape_and_length([20, 1, 5, 5])
     conv_1_kernel = ngraph.constant(weights[0:conv_1_kernel_length].reshape(conv_1_kernel_shape))
     weights_offset += conv_1_kernel_length
     conv_1_node = ngraph.convolution(param_node, conv_1_kernel, [1, 1], padding_begin, padding_end, [1, 1])
 
-    # add 1
     add_1_kernel_shape, add_1_kernel_length = shape_and_length([1, 20, 1, 1])
     add_1_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + add_1_kernel_length].reshape(add_1_kernel_shape),
     )
     weights_offset += add_1_kernel_length
     add_1_node = ngraph.add(conv_1_node, add_1_kernel)
-
-    # maxpool 1
     maxpool_1_node = ngraph.max_pool(add_1_node, [2, 2], padding_begin, padding_end, [2, 2], 'ceil', None)
-
-    # convolution 2
     conv_2_kernel_shape, conv_2_kernel_length = shape_and_length([50, 20, 5, 5])
     conv_2_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + conv_2_kernel_length].reshape(conv_2_kernel_shape),
     )
     weights_offset += conv_2_kernel_length
     conv_2_node = ngraph.convolution(maxpool_1_node, conv_2_kernel, [1, 1], padding_begin, padding_end, [1, 1])
-
-    # add 2
     add_2_kernel_shape, add_2_kernel_length = shape_and_length([1, 50, 1, 1])
     add_2_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + add_2_kernel_length].reshape(add_2_kernel_shape),
     )
     weights_offset += add_2_kernel_length
     add_2_node = ngraph.add(conv_2_node, add_2_kernel)
-
-    # maxpool 2
     maxpool_2_node = ngraph.max_pool(add_2_node, [2, 2], padding_begin, padding_end, [2, 2], 'ceil', None)
-
-    # reshape 1
     reshape_1_dims, reshape_1_length = shape_and_length([2])
     # workaround to get int64 weights from float32 ndarray w/o unnecessary copying
     dtype_weights = np.frombuffer(
@@ -116,31 +104,21 @@ def create_ngraph_function(args: argparse.Namespace) -> ngraph.impl.Function:
     reshape_1_kernel = ngraph.constant(dtype_weights)
     weights_offset += 2 * reshape_1_length
     reshape_1_node = ngraph.reshape(maxpool_2_node, reshape_1_kernel, True)
-
-    # matmul 1
     matmul_1_kernel_shape, matmul_1_kernel_length = shape_and_length([500, 800])
     matmul_1_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + matmul_1_kernel_length].reshape(matmul_1_kernel_shape),
     )
     weights_offset += matmul_1_kernel_length
     matmul_1_node = ngraph.matmul(reshape_1_node, matmul_1_kernel, False, True)
-
-    # add 3
     add_3_kernel_shape, add_3_kernel_length = shape_and_length([1, 500])
     add_3_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + add_3_kernel_length].reshape(add_3_kernel_shape),
     )
     weights_offset += add_3_kernel_length
     add_3_node = ngraph.add(matmul_1_node, add_3_kernel)
-
-    # ReLU
     relu_node = ngraph.relu(add_3_node)
-
-    # reshape 2
     reshape_2_kernel = ngraph.constant(dtype_weights)
     reshape_2_node = ngraph.reshape(relu_node, reshape_2_kernel, True)
-
-    # matmul 2
     matmul_2_kernel_shape, matmul_2_kernel_length = shape_and_length([10, 500])
     matmul_2_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + matmul_2_kernel_length].reshape(matmul_2_kernel_shape),
@@ -148,7 +126,6 @@ def create_ngraph_function(args: argparse.Namespace) -> ngraph.impl.Function:
     weights_offset += matmul_2_kernel_length
     matmul_2_node = ngraph.matmul(reshape_2_node, matmul_2_kernel, False, True)
 
-    # add 4
     add_4_kernel_shape, add_4_kernel_length = shape_and_length([1, 10])
     add_4_kernel = ngraph.constant(
         weights[weights_offset : weights_offset + add_4_kernel_length].reshape(add_4_kernel_shape),
@@ -156,10 +133,8 @@ def create_ngraph_function(args: argparse.Namespace) -> ngraph.impl.Function:
     weights_offset += add_4_kernel_length
     add_4_node = ngraph.add(matmul_2_node, add_4_kernel)
 
-    # softmax
     softmax_axis = 1
     softmax_node = ngraph.softmax(add_4_node, softmax_axis)
-
     # result
     result_node = ngraph.result(softmax_node)
     return ngraph.impl.Function(result_node, [param_node], 'lenet')
@@ -190,8 +165,8 @@ def main():
 
     # Set a batch size to a equal number of input images
     net.batch_size = len(args.input)
-
-    # ---------------------------Step 4. Loading model to the device-------------------------------------------------------
+    # Read and pre-process input images
+# ---------------------------Step 4. Loading model to the device-------------------------------------------------------
     log.info('Loading the model to the plugin')
     exec_net = ie.load_network(network=net, device_name=args.device)
 
@@ -219,9 +194,13 @@ def main():
             image = cv2.resize(image, (w, h))
 
         input_data[i] = image
-
     # ---------------------------Step 7. Do inference----------------------------------------------------------------------
     log.info('Starting inference in synchronous mode')
+
+    # Processing results
+
+
+    # Start sync inference
     res = exec_net.infer(inputs={input_blob: input_data})
 
     # ---------------------------Step 8. Process output--------------------------------------------------------------------

@@ -160,7 +160,8 @@ if (TBBBIND_2_4_FOUND)
 endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE pugixml openvino::itt ${CMAKE_DL_LIBS} Threads::Threads
-                                             ${NGRAPH_LIBRARIES} inference_engine_transformations)
+                                             inference_engine_transformations
+                                     PUBLIC ${NGRAPH_LIBRARIES})
 
 target_include_directories(${TARGET_NAME} INTERFACE
             $<BUILD_INTERFACE:${PUBLIC_HEADERS_DIR}>

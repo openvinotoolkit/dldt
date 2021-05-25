@@ -398,6 +398,10 @@ InferRequest::operator bool() const noexcept {
     return (!!_impl) || (!!actual);
 }
 
+void InferRequest::SetShape(const std::string &name, const SizeVector& dims) {
+    INFER_REQ_CALL_STATEMENT(_impl->SetShape(name.c_str(), dims);)
+}
+
 bool InferRequest::operator!=(const InferRequest& r) const noexcept {
     return !(r == *this);
 }
