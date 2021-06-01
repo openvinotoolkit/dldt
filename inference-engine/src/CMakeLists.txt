@@ -55,3 +55,5 @@ add_custom_target(ie_libraries ALL
 if(NGRAPH_ONNX_IMPORT_ENABLE)
     add_dependencies(ie_libraries inference_engine_onnx_reader)
 endif()
+
+add_dependencies(ie_libraries frontend_manager)

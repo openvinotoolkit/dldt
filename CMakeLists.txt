@@ -9,6 +9,10 @@ project(OpenVINO)
 set(OpenVINO_MAIN_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(IE_MAIN_SOURCE_DIR ${OpenVINO_MAIN_SOURCE_DIR}/inference-engine)
 
+#TODO: DO-NOT-RELEASE force disable ONNX importer/editor due to protobuf dynamic library conflicts
+#set(NGRAPH_ONNX_IMPORT_ENABLE OFF)
+#set(NGRAPH_ONNX_EDITOR_ENABLE OFF)
+
 find_package(IEDevScripts REQUIRED
              PATHS "${OpenVINO_MAIN_SOURCE_DIR}/cmake/developer_package"
              NO_CMAKE_FIND_ROOT_PATH
@@ -41,6 +45,7 @@ endforeach()
 #
 
 function(build_ngraph)
+
     function(ngraph_set option value)
         if(NOT DEFINED ${option})
             set(${option} ${value} CACHE BOOL "" FORCE)
@@ -66,6 +71,12 @@ function(build_ngraph)
         ngraph_set(NGRAPH_ONNX_IMPORT_ENABLE OFF)
     endif()
     ngraph_set(NGRAPH_INTERPRETER_ENABLE ON)
+    ngraph_set(NGRAPH_TF_FRONTEND_ENABLE OFF)
+    if(NOT (ANDROID OR WIN32 OR ARM OR AARCH64) )
+        ngraph_set(NGRAPH_PDPD_FRONTEND_ENABLE ON) #TODO: make it OFF by default
+    else()
+        ngraph_set(NGRAPH_PDPD_FRONTEND_ENABLE OFF)
+    endif()
 
     if(TREAT_WARNING_AS_ERROR)
         ngraph_set(NGRAPH_WARNINGS_AS_ERRORS ON)
@@ -108,6 +119,7 @@ function(build_ngraph)
     set(SDL_cmake_included ON)
     add_subdirectory(ngraph)
     set(NGRAPH_LIBRARIES ngraph PARENT_SCOPE)
+    set(FRONTEND_LIBRARIES frontend_manager PARENT_SCOPE)
     set(NGRAPH_REF_LIBRARIES ngraph_reference PARENT_SCOPE)
 endfunction()
 
