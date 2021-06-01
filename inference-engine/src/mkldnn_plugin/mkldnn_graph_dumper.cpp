@@ -132,7 +132,7 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
             if (graph.getProperty().shouldDumpAndPrintConstantNodes) {
                 ch_port = edge->getOutputNum();
             } else {
-                if (pr_node->getType() == Input && pr_node->isConstant()) continue;
+                if (pr_node->isConstant()) continue;
             }
 
             IE_ASSERT(node2layer.count(pr_node) == 1);
