@@ -945,6 +945,8 @@ void MKLDNNGraph::GetPerfData(std::map<std::string, InferenceEngine::InferenceEn
     };
 
     for (int i = 1; i < graphNodes.size(); i++) {
+        if (!getProperty().shouldDumpAndPrintConstantNodes && graphNodes[i]->isConstant())
+            continue;
         getPerfMapFor(perfMap, graphNodes[i]);
     }
 }

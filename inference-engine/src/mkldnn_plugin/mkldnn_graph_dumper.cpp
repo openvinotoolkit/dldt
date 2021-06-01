@@ -129,8 +129,8 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
             int pr_port = edge->getInputNum();
             auto pr_node = edge->getParent();
 
-            if (graph.getProperty().shouldDumpConstantNodes == "YES") {
-                ch_port =  edge->getOutputNum();
+            if (graph.getProperty().shouldDumpAndPrintConstantNodes) {
+                ch_port = edge->getOutputNum();
             } else {
                 if (pr_node->getType() == Input && pr_node->isConstant()) continue;
             }

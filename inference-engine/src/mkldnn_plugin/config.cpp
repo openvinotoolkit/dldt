@@ -111,9 +111,9 @@ void Config::readProperties(const std::map<std::string, std::string> &prop) {
             }
         }  else if (key.compare(PluginConfigInternalParams::KEY_DUMP_CONSTANT_NODES) == 0) {
             if (val == PluginConfigParams::NO)
-                shouldDumpConstantNodes = "NO";
+                shouldDumpAndPrintConstantNodes = false;
             else if (val == PluginConfigParams::YES)
-                shouldDumpConstantNodes = "YES";
+                shouldDumpAndPrintConstantNodes = true;
             else
                 IE_THROW() << "Wrong value for property key " << PluginConfigInternalParams::KEY_DUMP_CONSTANT_NODES;
         } else {

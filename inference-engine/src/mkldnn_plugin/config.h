@@ -26,7 +26,7 @@ struct Config {
     std::string dumpToDot = "";
     int batchLimit = 0;
     InferenceEngine::IStreamsExecutor::Config streamExecutorConfig;
-    std::string shouldDumpConstantNodes = "YES";
+    bool shouldDumpAndPrintConstantNodes = false;
 
 #if defined(__arm__) || defined(__aarch64__)
     // Currently INT8 mode is not optimized on ARM, fallback to FP32 mode.

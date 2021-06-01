@@ -7,7 +7,7 @@
 
 namespace ExecutionGraphTests {
 
-class ExecGraphRemoveConstantLayers : public testing::TestWithParam<std::string> {
+class ExecGraphDumpConstantLayers : public testing::TestWithParam<std::string> {
 public:
     static std::string getTestCaseName(testing::TestParamInfo<std::string> obj);
 };
