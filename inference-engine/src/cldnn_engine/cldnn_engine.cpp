@@ -53,6 +53,7 @@
 
 #include <low_precision/transformer.hpp>
 #include <low_precision/mat_mul.hpp>
+#include <low_precision/multiply_to_group_convolution.hpp>
 
 #ifdef __linux__
 # include <dlfcn.h>
@@ -236,7 +237,8 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
                 LayerTransformation::QuantizedTensorAlignment::None,  // quantizedTensorAlignmentOnWeights
                 true);  // supportAsymmetricQuantization
             LowPrecisionTransformer transformer(LowPrecisionTransformer::getAllTransformations(params)
-                .add<MatMulTransformation, ngraph::opset1::MatMul>(LayerTransformation::Params(params).setSupportAsymmetricQuantization(false)));
+                .add<MatMulTransformation, ngraph::opset1::MatMul>(LayerTransformation::Params(params).setSupportAsymmetricQuantization(false))
+                .removeStandaloneCleanup<MultiplyToGroupConvolutionTransformation, ngraph::opset1::Multiply>());
 
             transformer.transform(nGraphFunc);
         }
