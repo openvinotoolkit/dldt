@@ -20,6 +20,15 @@ op::v1::Gather::Gather(const Output<Node>& params,
     constructor_validate_and_infer_types();
 }
 
+
+bool op::v1::Gather::evaluate_label(TensorLabelVector& output_labels) const
+{
+    if (!input_value(1).get_tensor().has_and_set_bound() ||
+        !input_value(2).get_tensor().has_and_set_bound())
+        return false;
+    return default_label_evaluator(this, output_labels);
+}
+
 int64_t ngraph::op::v1::Gather::get_axis() const
 {
     if (!get_constant_from_source(input_value(2)))

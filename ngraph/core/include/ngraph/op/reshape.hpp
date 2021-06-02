@@ -57,6 +57,7 @@ namespace ngraph
                 bool has_evaluate() const override;
                 bool evaluate_lower(const HostTensorVector& outputs) const override;
                 bool evaluate_upper(const HostTensorVector& outputs) const override;
+                bool evaluate_label(TensorLabelVector& output_labels) const override;
                 bool constant_fold(OutputVector& output_values,
                                    const OutputVector& inputs_values) override;
 

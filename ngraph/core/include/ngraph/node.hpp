@@ -57,6 +57,7 @@ namespace ngraph
     using HostTensor = runtime::HostTensor;
     using HostTensorPtr = std::shared_ptr<HostTensor>;
     using HostTensorVector = std::vector<HostTensorPtr>;
+    using TensorLabelVector = std::vector<TensorLabel>;
 
     /// EvaluationContext stores and manages a context (additional parameters, values and
     /// environment) for evaluating ngraph::function.
@@ -221,6 +222,7 @@ namespace ngraph
                               const EvaluationContext& evaluationContext) const;
         virtual bool evaluate_lower(const HostTensorVector& output_values) const;
         virtual bool evaluate_upper(const HostTensorVector& output_values) const;
+        virtual bool evaluate_label(TensorLabelVector& output_labels) const;
 
         virtual bool constant_fold(OutputVector& output_values, const OutputVector& inputs_values);
         /// \brief Decomposes the FusedOp into a sub-graph consisting of core ngraph ops

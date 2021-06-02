@@ -47,6 +47,7 @@ namespace ngraph
                 bool has_evaluate() const override;
                 bool evaluate_lower(const HostTensorVector& outputs) const override;
                 bool evaluate_upper(const HostTensorVector& outputs) const override;
+                bool evaluate_label(TensorLabelVector& output_labels) const override;
 
             protected:
                 ngraph::element::Type m_destination_type;

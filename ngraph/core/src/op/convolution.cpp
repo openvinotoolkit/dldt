@@ -180,12 +180,10 @@ const PartialShape op::v1::ConvolutionBackpropData::get_output_shape() const
     bool is_output_shape_present = inputs().size() == 3;
     if (is_output_shape_present)
     {
-        if (const auto& const_op = get_constant_from_source(input_value(2)))
-        {
-            return PartialShape{const_op->get_shape_val()};
-        }
+        PartialShape pshape;
+        evaluate_as_partial_shape(input_value(2), pshape);
+        return pshape;
     }
-
     if (data_pshape.rank().is_static())
     {
         shape = PartialShape{vector<Dimension>(data_pshape.rank().get_length() - 2)};

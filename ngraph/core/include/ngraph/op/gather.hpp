@@ -26,9 +26,9 @@ namespace ngraph
                        const Output<Node>& indices,
                        const Output<Node>& axis);
 
+                bool evaluate_label(TensorLabelVector& output_labels) const override;
                 bool visit_attributes(AttributeVisitor& visitor) override;
                 int64_t get_axis() const override;
-
                 std::shared_ptr<Node>
                     clone_with_new_inputs(const OutputVector& new_args) const override;
             };
