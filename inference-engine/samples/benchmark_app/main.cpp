@@ -24,6 +24,7 @@
 #include "statistics_report.hpp"
 #include "inputs_filling.hpp"
 #include "utils.hpp"
+#include "remotecontext_helper.hpp"
 
 using namespace InferenceEngine;
 
@@ -75,6 +76,11 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
 
         throw std::logic_error(err);
     }
+#ifdef USE_REMOTE_MEM
+    if (FLAGS_use_remote_mem && FLAGS_d != "VPUX") {
+        throw std::logic_error("Incorrect device name. Using remote memory feature must set device name to VPUX.");
+    }
+#endif
     return true;
 }
 
@@ -185,6 +191,12 @@ int main(int argc, char *argv[]) {
                 config["GPU"] = {};
             config["GPU"][CONFIG_KEY(CONFIG_FILE)] = FLAGS_c;
         }
+#ifdef USE_REMOTE_MEM
+        RemoteContextHelper remoteContextHelper;
+        if (FLAGS_d.find("VPUX") != std::string::npos) {
+            remoteContextHelper.init(ie);
+        }
+#endif
         if (config.count("GPU") && config.at("GPU").count(CONFIG_KEY(CONFIG_FILE))) {
             auto ext = config.at("GPU").at(CONFIG_KEY(CONFIG_FILE));
             ie.SetConfig({{ CONFIG_KEY(CONFIG_FILE), ext }}, "GPU");
@@ -395,7 +407,15 @@ int main(int argc, char *argv[]) {
             // ----------------- 7. Loading the model to the device --------------------------------------------------------
             next_step();
             startTime = Time::now();
+#ifdef USE_REMOTE_MEM
+            if (FLAGS_use_remote_mem == false) {
+                exeNetwork = ie.LoadNetwork(cnnNetwork, device_name);
+            } else {
+                exeNetwork = ie.LoadNetwork(cnnNetwork, remoteContextHelper.getRemoteContext());
+            }
+#else
             exeNetwork = ie.LoadNetwork(cnnNetwork, device_name);
+#endif
             duration_ms = double_to_string(get_total_ms_time(startTime));
             slog::info << "Load network took " << duration_ms << " ms" << slog::endl;
             if (statistics)
@@ -413,7 +433,20 @@ int main(int argc, char *argv[]) {
             // ----------------- 7. Loading the model to the device --------------------------------------------------------
             next_step();
             auto startTime = Time::now();
+#ifdef USE_REMOTE_MEM
+            if (FLAGS_use_remote_mem == false) {
+                exeNetwork = ie.ImportNetwork(FLAGS_m, device_name, {});
+            } else {
+                std::filebuf blobFile;
+                if (!blobFile.open(FLAGS_m, std::ios::in | std::ios::binary)) {
+                    THROW_IE_EXCEPTION << "Could not open file: " << FLAGS_m;
+                }
+                std::istream graphBlob(&blobFile);
+                exeNetwork = ie.ImportNetwork(graphBlob, remoteContextHelper.getRemoteContext());
+            }
+#else
             exeNetwork = ie.ImportNetwork(FLAGS_m, device_name, {});
+#endif
             auto duration_ms = double_to_string(get_total_ms_time(startTime));
             slog::info << "Import network took " << duration_ms << " ms" << slog::endl;
             if (statistics)
@@ -500,7 +533,11 @@ int main(int argc, char *argv[]) {
         next_step();
 
         InferRequestsQueue inferRequestsQueue(exeNetwork, nireq);
+#ifdef USE_REMOTE_MEM
+        fillBlobs(remoteContextHelper, inputFiles, batchSize, app_inputs_info, inferRequestsQueue.requests, FLAGS_use_remote_mem);
+#else
         fillBlobs(inputFiles, batchSize, app_inputs_info, inferRequestsQueue.requests);
+#endif
 
         // ----------------- 10. Measuring performance ------------------------------------------------------------------
         size_t progressCnt = 0;

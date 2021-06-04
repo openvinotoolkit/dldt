@@ -109,6 +109,9 @@ Options:
     -op "U8"/"FP16"/"FP32"    Optional. Specifies precision for all output layers of the network.
     -iop                      Optional. Specifies precision for input and output layers by name. Example: -iop "input:FP16, output:FP16". Notice that quotes are required. Overwrites precision from ip and op options for specified layers.
 
+   VPUX-specific performance options:
+    -use_remote_mem           Optional. Prealloc remote memory in device to execute infer request.
+    Useful in VPUX plugin.
 
   Statistics dumping options:
     -report_type "<type>"     Optional. Enable collecting statistics report. "no_counters" report contains configuration options specified, resulting FPS and latency. "average_counters" report extends "no_counters" report and additionally includes average PM counters values for each layer from the network. "detailed_counters" report extends "average_counters" report and additionally includes per-layer PM counters and latency for each executed infer request.
