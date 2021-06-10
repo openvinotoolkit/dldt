@@ -21,11 +21,10 @@ std::string ExecGraphDumpConstantLayers::getTestCaseName(testing::TestParamInfo<
 
 inline std::pair<std::vector<std::shared_ptr<ngraph::Node>>, std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>>
                                                 generateExecGraph(const std::string dName, const bool shouldDumpConstantNodes) {
-    std::map<std::string, std::string> config;
-    if (shouldDumpConstantNodes)
-        config = {{CONFIG_KEY_INTERNAL(DUMP_CONSTANT_NODES), CONFIG_VALUE(YES)}};
-    else
-        config = {{CONFIG_KEY_INTERNAL(DUMP_CONSTANT_NODES), CONFIG_VALUE(NO)}};
+    const char* status = std::getenv("OV_CPU_DUMP_CONSTANT_NODES");
+    if (!shouldDumpConstantNodes)
+        if (setenv("OV_CPU_DUMP_CONSTANT_NODES", "NO", 1))
+            IE_THROW() << "setenv: Cannot set value on OV_CPU_DUMP_CONSTANT_NODES";
 
     auto deviceName = dName;
     ngraph::Shape shape = {3, 2};
@@ -75,13 +74,17 @@ inline std::pair<std::vector<std::shared_ptr<ngraph::Node>>, std::map<std::strin
 
     auto ie  = InferenceEngine::Core();
     auto net = InferenceEngine::CNNNetwork(function);
-    auto execNet   = ie.LoadNetwork(net, deviceName, config);
+    auto execNet   = ie.LoadNetwork(net, deviceName);
     auto execGraph = execNet.GetExecGraphInfo();
     auto execOps   = execGraph.getFunction()->get_ops();
 
     std::pair<std::vector<std::shared_ptr<ngraph::Node>>,
               std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>>
               result = {execOps, execNet.CreateInferRequest().GetPerformanceCounts()};
+
+    if (!shouldDumpConstantNodes && status != nullptr && strcmp(status, "NO") != 0)
+        if (setenv("OV_CPU_DUMP_CONSTANT_NODES", status, 1))
+            IE_THROW() << "setenv: Cannot set value on OV_CPU_DUMP_CONSTANT_NODES";
 
     return result;
 }

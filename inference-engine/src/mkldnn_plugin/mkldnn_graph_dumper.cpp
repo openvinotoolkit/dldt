@@ -119,6 +119,12 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
     ngraph::ParameterVector params;
     ngraph::NodeVector to_hold;
 
+    bool shouldDumpConstantNodes = true;
+
+#ifdef CPU_DEBUG_CAPS
+    shouldDumpConstantNodes = !(graph.getProperty().debugCaps.shouldDumpConstNodes == "NO");
+#endif
+
     auto get_inputs = [&] (const MKLDNNNodePtr & node) {
         auto pr_edges = node->getParentEdges();
         ngraph::OutputVector inputs(pr_edges.size());
@@ -129,7 +135,7 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
             int pr_port = edge->getInputNum();
             auto pr_node = edge->getParent();
 
-            if (graph.getProperty().shouldDumpAndPrintConstantNodes) {
+            if (shouldDumpConstantNodes) {
                 ch_port = edge->getOutputNum();
             } else {
                 if (pr_node->isConstant()) continue;
