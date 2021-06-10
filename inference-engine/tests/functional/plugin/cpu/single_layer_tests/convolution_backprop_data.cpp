@@ -124,6 +124,13 @@ const SizeVector numOutChannels_Planar = { 6 };
 /* ============= Deconvolution params (blocked layout) ============= */
 const SizeVector numOutChannels_Blocked = { 64 };
 
+/* ======== Deconvolution params (runtimeError) ======== */
+const std::vector<SizeVector> kernels = { {31, 1} };
+const std::vector<SizeVector> strides = { {2, 1} };
+const std::vector<std::vector<ptrdiff_t>> padBegins = { {14, 0} };
+const std::vector<std::vector<ptrdiff_t>> padEnds = { {15, 0} };
+const std::vector<SizeVector> dilations = { {1, 1} };
+
 /* ============= Deconvolution params (2D) ============= */
 const std::vector<SizeVector> kernels2d = { {3, 3}, {1, 1} };
 const std::vector<SizeVector> strides2d = { {1, 1}, {2, 2} };
@@ -140,6 +147,34 @@ const std::vector<SizeVector> dilations3d = { {1, 1, 1} };
 /* ============= */
 
 /* INSTANCES */
+/* ======== Deconvolution params (runtimeError) ======== */
+const SizeVector numOutChannels = { 512 };
+const auto convParams_runtimeError = ::testing::Combine(
+    ::testing::ValuesIn(kernels),
+    ::testing::ValuesIn(strides),
+    ::testing::ValuesIn(padBegins),
+    ::testing::ValuesIn(padEnds),
+    ::testing::ValuesIn(dilations),
+    ::testing::ValuesIn(numOutChannels),
+    ::testing::Values(ngraph::op::PadType::EXPLICIT)
+);
+
+INSTANTIATE_TEST_CASE_P(smoke_Deconv_RuntimeError_FP32, DeconvolutionLayerCPUTest,
+    ::testing::Combine(
+            ::testing::Combine(
+                    convParams_runtimeError,
+                    ::testing::Values(Precision::FP32),
+                    ::testing::Values(Precision::UNSPECIFIED),
+                    ::testing::Values(Precision::UNSPECIFIED),
+                    ::testing::Values(Layout::ANY),
+                    ::testing::Values(Layout::ANY),
+                    ::testing::Values(std::vector<size_t >({ 25, 1024, 4, 1 })),
+                    ::testing::Values(CommonTestUtils::DEVICE_CPU)),
+            ::testing::ValuesIn(filterCPUInfoForDevice({conv_gemm_2D})),
+            ::testing::ValuesIn(fusingParamsSet),
+            ::testing::Values(cpuEmptyPluginConfig)),
+    DeconvolutionLayerCPUTest::getTestCaseName);
+
 /* ============= Deconvolution (Planar 2D) ============= */
 const auto convParams_ExplicitPadding_Planar_2D = ::testing::Combine(
     ::testing::ValuesIn(kernels2d),
