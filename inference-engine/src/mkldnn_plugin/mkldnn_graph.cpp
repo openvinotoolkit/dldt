@@ -920,12 +920,6 @@ void MKLDNNGraph::SortTopologically() {
 }
 
 void MKLDNNGraph::GetPerfData(std::map<std::string, InferenceEngine::InferenceEngineProfileInfo> &perfMap) const {
-    bool shouldPrintConstantNodes = true;
-
-#ifdef CPU_DEBUG_CAPS
-    shouldPrintConstantNodes = !(getProperty().debugCaps.shouldDumpConstNodes == "NO");
-#endif
-
     unsigned i = 0;
     std::function<void(std::map<std::string, InferenceEngine::InferenceEngineProfileInfo> &, const MKLDNNNodePtr&)>
             getPerfMapFor = [&](std::map<std::string, InferenceEngine::InferenceEngineProfileInfo> &perfMap, const MKLDNNNodePtr& node) {
@@ -950,9 +944,16 @@ void MKLDNNGraph::GetPerfData(std::map<std::string, InferenceEngine::InferenceEn
         }
     };
 
+    bool shouldPrintConstantNodes = false;
+
+#ifdef CPU_DEBUG_CAPS
+    shouldPrintConstantNodes = getConfig().debugCaps.shouldDumpConstNodes == "YES";
+#endif
+
     for (int i = 1; i < graphNodes.size(); i++) {
-        if (!shouldPrintConstantNodes && graphNodes[i]->isConstant())
+        if (graphNodes[i]->isConstant() && !shouldPrintConstantNodes) {
             continue;
+        }
         getPerfMapFor(perfMap, graphNodes[i]);
     }
 }

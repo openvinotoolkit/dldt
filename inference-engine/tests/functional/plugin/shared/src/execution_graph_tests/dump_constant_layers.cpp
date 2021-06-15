@@ -20,12 +20,7 @@ std::string ExecGraphDumpConstantLayers::getTestCaseName(testing::TestParamInfo<
 }
 
 inline std::pair<std::vector<std::shared_ptr<ngraph::Node>>, std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>>
-                                                generateExecGraph(const std::string dName, const bool shouldDumpConstantNodes) {
-    const char* status = std::getenv("OV_CPU_DUMP_CONSTANT_NODES");
-    if (!shouldDumpConstantNodes)
-        if (setenv("OV_CPU_DUMP_CONSTANT_NODES", "NO", 1))
-            IE_THROW() << "setenv: Cannot set value on OV_CPU_DUMP_CONSTANT_NODES";
-
+                                                generateExecGraph(const std::string dName) {
     auto deviceName = dName;
     ngraph::Shape shape = {3, 2};
     ngraph::element::Type type = ngraph::element::f32;
@@ -82,63 +77,41 @@ inline std::pair<std::vector<std::shared_ptr<ngraph::Node>>, std::map<std::strin
               std::map<std::string, InferenceEngine::InferenceEngineProfileInfo>>
               result = {execOps, execNet.CreateInferRequest().GetPerformanceCounts()};
 
-    if (!shouldDumpConstantNodes && status != nullptr && strcmp(status, "NO") != 0)
-        if (setenv("OV_CPU_DUMP_CONSTANT_NODES", status, 1))
-            IE_THROW() << "setenv: Cannot set value on OV_CPU_DUMP_CONSTANT_NODES";
-
     return result;
 }
 
-TEST_P(ExecGraphDumpConstantLayers, DumpConstantLayersYes) {
+TEST_P(ExecGraphDumpConstantLayers, DumpConstantLayers) {
     SKIP_IF_CURRENT_TEST_IS_DISABLED()
 
-    auto result = generateExecGraph(this->GetParam(), true);
+    auto result = generateExecGraph(this->GetParam());
+    bool dumpCheckConst = true;
+    bool performanceCheckConst = true;
+
+#ifdef CPU_DEBUG_CAPS
+    if (strcmp(std::getenv("OV_CPU_DUMP_CONSTANT_NODES"), "YES") == 0) {
+        dumpCheckConst = !dumpCheckConst;
+        performanceCheckConst = !performanceCheckConst;
+    }
+#endif
+
     auto execOps = result.first;
-    bool dumpCheckConst = false;
     for (auto &node : execOps) {
         auto var = node->get_rt_info()["layerType"];
         auto val = std::dynamic_pointer_cast<ngraph::VariantImpl<std::string>>(var);
         if (val->get() == "Const") {
-            dumpCheckConst = true;
+            dumpCheckConst = !dumpCheckConst;
             break;
         }
     }
 
     auto performanceMap = result.second;
-    bool performanceCheckConst = false;
     for (const auto& it : performanceMap) {
         if ((it.first.find("Constant_") != std::string::npos) || (std::string(it.second.layer_type) == "Constant")) {
-            performanceCheckConst = true;
+            performanceCheckConst = !performanceCheckConst;
             break;
         }
     }
     ASSERT_TRUE(dumpCheckConst && performanceCheckConst);
 }
-
-TEST_P(ExecGraphDumpConstantLayers, DumpConstantLayersNo) {
-        SKIP_IF_CURRENT_TEST_IS_DISABLED()
-
-        auto result = generateExecGraph(this->GetParam(), false);
-        auto execOps = result.first;
-        bool dumpCheckConst = true;
-        for (auto &node : execOps) {
-            auto var = node->get_rt_info()["layerType"];
-            auto val = std::dynamic_pointer_cast<ngraph::VariantImpl<std::string>>(var);
-            if (val->get() == "Const") {
-                dumpCheckConst = false;
-                break;
-            }
-        }
-
-        auto performanceMap = result.second;
-        bool performanceCheckConst = true;
-        for (const auto& it : performanceMap) {
-            if ((it.first.find("Constant_") != std::string::npos) || (std::string(it.second.layer_type) == "Constant")) {
-                performanceCheckConst = false;
-                break;
-            }
-        }
-        ASSERT_TRUE(dumpCheckConst && performanceCheckConst);
-    }
 
 } // namespace ExecutionGraphTests
