@@ -82,9 +82,16 @@ protected:
         auto params = ngraph::builder::makeParams(ngPrc, {inputShape});
         auto paramOuts = ngraph::helpers::convert2OutputVector(
                 ngraph::helpers::castOps2Nodes<ngraph::op::Parameter>(params));
+
+        size_t kernelShapeSize = convOutChannels * inputShape[1] / numGroups;
+        for (int i = 0; i < kernel.size(); i++) {
+            kernelShapeSize *= kernel[i];
+        }
+        std::vector<float> weights = generateRandom(kernelShapeSize);
+
         auto groupConv = std::dynamic_pointer_cast<ngraph::opset1::GroupConvolutionBackpropData>(
                 ngraph::builder::makeGroupConvolutionBackpropData(paramOuts[0], ngPrc, kernel, stride, padBegin,
-                                                      padEnd, dilation, padType, convOutChannels, numGroups));
+                                                      padEnd, dilation, padType, convOutChannels, numGroups, false, weights));
         function = makeNgraphFunction(ngPrc, params, groupConv, "groupConvolutionBackpropData");
     }
 };

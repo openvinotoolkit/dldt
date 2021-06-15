@@ -36,8 +36,14 @@ void ExecGraphInputsFusingBinConv::SetUp() {
     auto params = ngraph::builder::makeParams(ngraph::element::f32, {inputShapes});
     auto binConv = ngraph::builder::makeBinaryConvolution(params[0], binConvKernelSize, strides, padsBegin, padsEnd, dilations, paddingType, numOutChannels,
                                                           padValue);
+
+    size_t kernelShapeSize = numOutChannels * inputShapes[1] / numGroups;
+    for (int i = 0; i < convKernelSize.size(); i++) {
+        kernelShapeSize *= convKernelSize[i];
+    }
+    std::vector<float> weights = generateRandom(kernelShapeSize);
     auto conv = ngraph::builder::makeGroupConvolution(binConv, ngraph::element::f32, convKernelSize, strides, padsBegin, padsEnd, dilations, paddingType,
-                                                      numOutChannels, numGroups);
+                                                      numOutChannels, numGroups, false, weights);
 
     auto biasNode = std::make_shared<ngraph::op::Constant>(ngraph::element::f32, std::vector<size_t>{16, 1, 1});
     auto add = std::make_shared<ngraph::opset1::Add>(conv, biasNode);

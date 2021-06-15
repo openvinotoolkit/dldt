@@ -238,6 +238,20 @@ CPUTestsBase::makeCPUInfo(std::vector<cpu_memory_format_t> inFmts, std::vector<c
     return cpuInfo;
 }
 
+std::vector<float> CPUTestsBase::generateRandom(size_t size, int minValue, int maxValue, int seed) const {
+    std::vector<float> res;
+
+    std::mt19937 gen(seed);
+    // chose values between this int range to cover various data type and negative values
+    std::uniform_int_distribution<int> dist(minValue, maxValue);
+
+    for (size_t i = 0; i < size; i++) {
+        res.push_back(
+                static_cast<float>(dist(gen)));
+    }
+    return res;
+}
+
 std::shared_ptr<ngraph::Function>
 CPUTestsBase::makeNgraphFunction(const ngraph::element::Type &ngPrc, ngraph::ParameterVector &params,
                                  const std::shared_ptr<ngraph::Node> &lastNode, std::string name) const {

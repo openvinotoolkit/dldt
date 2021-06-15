@@ -84,8 +84,14 @@ protected:
         auto inputParams = ngraph::builder::makeParams(ngraph::element::f32, { inputShape });
         auto paramOuts = ngraph::helpers::convert2OutputVector(ngraph::helpers::castOps2Nodes<ngraph::op::Parameter>(inputParams));
 
+        size_t kernelShapeSize = convOutChannels * inputShape[1];
+        for (int i = 0; i < kernel.size(); i++) {
+            kernelShapeSize *= kernel[i];
+        }
+        std::vector<float> weights = generateRandom(kernelShapeSize);
+
         auto deconvolutionNode = ngraph::builder::makeConvolutionBackpropData(paramOuts.front(), ngPrc, kernel, stride, padBegin,
-            padEnd, dilation, padType, convOutChannels);
+            padEnd, dilation, padType, convOutChannels, false, weights);
 
         function = makeNgraphFunction(ngPrc, inputParams, deconvolutionNode, "convolutionBackpropData");
     }

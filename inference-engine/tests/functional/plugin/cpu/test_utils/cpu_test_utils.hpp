@@ -119,6 +119,7 @@ public:
     static CPUInfo makeCPUInfo(std::vector<cpu_memory_format_t> inFmts,
                                std::vector<cpu_memory_format_t> outFmts,
                                std::vector<std::string> priority);
+    std::vector<float> generateRandom(size_t size, int minValue = -10, int maxValue = 10, int seed = 1) const;
 
     CPUInfo getCPUInfo() const;
     std::shared_ptr<ngraph::Function> makeNgraphFunction(const ngraph::element::Type &ngPrc,
