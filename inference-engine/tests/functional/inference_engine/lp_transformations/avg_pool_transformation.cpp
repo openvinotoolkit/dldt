@@ -13,7 +13,6 @@
 #include <transformations/init_node_info.hpp>
 #include <low_precision/avg_pool.hpp>
 #include <low_precision/max_pool.hpp>
-#include <low_precision/transformer.hpp>
 
 #include "common_test_utils/ngraph_test_utils.hpp"
 #include "simple_low_precision_transformer.hpp"
@@ -40,7 +39,7 @@ public:
         ngraph::builder::subgraph::DequantizationOperations dequantizationAfter;
     };
 
-    ngraph::pass::low_precision::LayerTransformation::Params params;
+    TestTransformationParams params;
     Actual actual;
     Expected expected;
 };
@@ -66,7 +65,7 @@ public:
             testValues.actual.inputPrecision,
             shape,
             addFakeQuantize,
-            additionalLayer,
+            { additionalLayer },
             testValues.actual.dequantization);
 
         SimpleLowPrecisionTransformer transform;
@@ -79,9 +78,10 @@ public:
             testValues.expected.inputPrecision,
             shape,
             addFakeQuantize,
-            additionalLayer,
+            { additionalLayer },
             testValues.expected.dequantizationBefore,
             testValues.expected.preicsionAfterOperation,
+            {},
             testValues.expected.dequantizationAfter);
     }
 
