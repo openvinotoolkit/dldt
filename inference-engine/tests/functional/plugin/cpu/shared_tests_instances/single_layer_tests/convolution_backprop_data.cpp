@@ -143,6 +143,30 @@ INSTANTIATE_TEST_SUITE_P(smoke_ConvolutionBackpropData2D_AutoPadding_OutputPaddi
                                 ::testing::Values(CommonTestUtils::DEVICE_CPU)),
                         ConvolutionBackpropLayerTest::getTestCaseName);
 
+const std::vector<std::vector<size_t >> kernels = { {31, 1} };
+const std::vector<std::vector<size_t >> strides = { {2, 1} };
+const std::vector<std::vector<size_t >> dilations = { {1, 1} };
+const std::vector<size_t> numOutChannel = { 512 };
+
+INSTANTIATE_TEST_CASE_P(smoke_ConvolutionBackpropData2D_RuntimeError, ConvolutionBackpropDataLayerTest,
+                        ::testing::Combine(
+                                ::testing::Combine(
+                                        ::testing::ValuesIn(kernels),
+                                        ::testing::ValuesIn(strides),
+                                        ::testing::Values(std::vector<ptrdiff_t>({14, 0})),
+                                        ::testing::Values(std::vector<ptrdiff_t>({15, 0})),
+                                        ::testing::ValuesIn(dilations),
+                                        ::testing::ValuesIn(numOutChannel),
+                                        ::testing::Values(ngraph::op::PadType::EXPLICIT)),
+                                ::testing::ValuesIn(netPrecisions),
+                                ::testing::Values(InferenceEngine::Precision::UNSPECIFIED),
+                                ::testing::Values(InferenceEngine::Precision::UNSPECIFIED),
+                                ::testing::Values(InferenceEngine::Layout::ANY),
+                                ::testing::Values(InferenceEngine::Layout::ANY),
+                                ::testing::Values(std::vector<size_t >({ 25, 1024, 4, 1 })),
+                                ::testing::Values(CommonTestUtils::DEVICE_CPU)),
+                        ConvolutionBackpropDataLayerTest::getTestCaseName);
+
 /* ============= 3D ConvolutionBackpropData ============= */
 const std::vector<std::vector<size_t >> inputShapes3D = {{1, 3, 10, 10, 10},
                                                          {1, 16, 5, 5, 5},
