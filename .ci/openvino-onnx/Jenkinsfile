@@ -154,7 +154,7 @@ def getConfigurationsMap() {
 }
 
 CONFIGURATION_WORKFLOW = { configuration ->
-    node("OpenVINO") {
+    node("OpenVINO-test") {
         try {
             PROJECT_NAME = "openvino"
             String workdir = "${HOME}/workspace/${BUILD_NUMBER}_${env.CHANGE_ID}_${configuration.name}"
