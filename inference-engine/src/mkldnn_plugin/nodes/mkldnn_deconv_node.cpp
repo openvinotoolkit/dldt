@@ -70,6 +70,7 @@ MKLDNNDeconvolutionNode::MKLDNNDeconvolutionNode(const std::shared_ptr<ngraph::N
             }
             paddingL = convBackprop->get_pads_begin();
             paddingR = convBackprop->get_pads_end();
+            paddingType = convBackprop->get_auto_pad();
         } else if (groupConvBackprop) {
             algorithm = DeconvolutionGrouped;
 
@@ -222,7 +223,7 @@ void MKLDNNDeconvolutionNode::getSupportedDescriptors() {
         IE_THROW() << errorPrefix << " has incorrect number of output edges";
 
     for (int i = 0; i < paddingR.size(); i++) {
-        if (paddingR[i] > 1) continue;
+        if (paddingType == ngraph::op::PadType::SAME_LOWER) continue;
         int with_group = getAlgorithm() == DeconvolutionGrouped ? 1 : 0;
         int krn = weightDims[with_group + 2 + i];
         int src = getChildEdgeAt(0)->getDims()[2 + i];

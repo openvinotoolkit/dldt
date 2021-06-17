@@ -143,7 +143,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_ConvolutionBackpropData2D_AutoPadding_OutputPaddi
                                 ::testing::Values(CommonTestUtils::DEVICE_CPU)),
                         ConvolutionBackpropLayerTest::getTestCaseName);
 
-INSTANTIATE_TEST_CASE_P(smoke_ConvolutionBackpropData2D_RuntimeError, ConvolutionBackpropLayerTest,
+INSTANTIATE_TEST_CASE_P(smoke_ConvolutionBackpropData2D_EndPadComputation, ConvolutionBackpropLayerTest,
                         ::testing::Combine(
                                 ::testing::Combine(
                                         ::testing::ValuesIn(std::vector<std::vector<size_t >>({ {31, 1} })),
@@ -151,15 +151,15 @@ INSTANTIATE_TEST_CASE_P(smoke_ConvolutionBackpropData2D_RuntimeError, Convolutio
                                         ::testing::Values(std::vector<ptrdiff_t>({14, 0})),
                                         ::testing::Values(std::vector<ptrdiff_t>({15, 0})),
                                         ::testing::ValuesIn(std::vector<std::vector<size_t >>({ {1, 1} })),
-                                        ::testing::ValuesIn(std::vector<size_t>({ 512 })),
-                                        ::testing::Values(ngraph::op::PadType::EXPLICIT),
+                                        ::testing::ValuesIn(std::vector<size_t>({ 4 })),
+                                        ::testing::Values(ngraph::op::PadType::SAME_LOWER),
                                         ::testing::ValuesIn(std::vector<std::vector<ptrdiff_t >>({ {0, 0} }))),
                                 ::testing::ValuesIn(netPrecisions),
                                 ::testing::Values(InferenceEngine::Precision::UNSPECIFIED),
                                 ::testing::Values(InferenceEngine::Precision::UNSPECIFIED),
                                 ::testing::Values(InferenceEngine::Layout::ANY),
                                 ::testing::Values(InferenceEngine::Layout::ANY),
-                                ::testing::Values(std::vector<size_t >({ 1, 256, 4, 1 })),
+                                ::testing::Values(std::vector<size_t >({ 1, 4, 4, 1 })),
                                 ::testing::ValuesIn(emptyOutputShape),
                                 ::testing::Values(CommonTestUtils::DEVICE_CPU)),
                         ConvolutionBackpropLayerTest::getTestCaseName);
