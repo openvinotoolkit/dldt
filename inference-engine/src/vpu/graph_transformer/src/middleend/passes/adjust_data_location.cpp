@@ -89,7 +89,7 @@ void PassImpl::copyHwNetOutputs(const Model& model) {
             _stageBuilder->addCopyStage(
                 model,
                 stage->name() + "@flush-output",
-                stage->origLayer(),
+                stage->origNode(),
                 newOutput,
                 output,
                 "copyHwNetOutputs");
@@ -303,7 +303,7 @@ void PassImpl::adjustModelForMemReqs(const Model& model) {
                 auto copyStage = _stageBuilder->addCopyStage(
                     model,
                     formatString("%s@move-to-DDR", cmxData->name()),
-                    failedStage->origLayer(),
+                    failedStage->origNode(),
                     cmxData,
                     ddrCopy,
                     "CopyFromCMXToDDRAdjustment");
@@ -374,7 +374,7 @@ void PassImpl::copyHwMisalignedInput(const Model& model) {
             _stageBuilder->addCopyStage(
                 model,
                 stage->name() + "@align-input-ptr",
-                stage->origLayer(),
+                stage->origNode(),
                 input,
                 newInput,
                 "copyHwMisalignedInput");
