@@ -119,34 +119,27 @@ InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph
     ngraph::ParameterVector params;
     ngraph::NodeVector to_hold;
 
+    bool shouldDumpConstantNodes = false;
+
+#ifdef CPU_DEBUG_CAPS
+    shouldDumpConstantNodes = graph.getConfig().debugCaps.shouldDumpConstNodes == "YES";
+#endif
+
     auto get_inputs = [&] (const MKLDNNNodePtr & node) {
         const auto& pr_edges = node->getParentEdges();
-        ngraph::OutputVector inputs(pr_edges.size());
+        ngraph::OutputVector inputs(0);
 
         for (int i = 0; i < pr_edges.size(); i++) {
             const auto& edge = node->getParentEdgeAt(i);
             const int pr_port = edge->getInputNum();
-            const int ch_port = edge->getOutputNum();
             const auto& pr_node = edge->getParent();
+
+            if (pr_node->isConstant() && !shouldDumpConstantNodes && !graph.getConfig().dumpConstNode) continue;
 
             IE_ASSERT(node2layer.count(pr_node) == 1);
             const auto& pr = node2layer[pr_node];
 
-            inputs[ch_port] = pr->output(pr_port);
-        }
-
-#ifdef CPU_DEBUG_CAPS
-        if (graph.getConfig().debugCaps.shouldDumpConstNodes == "YES")
-            return inputs;
-#endif
-
-        for (int i = 0; i < node->getParentEdges().size(); i++) {
-            const auto &edge = node->getParentEdgeAt(i);
-            const auto &pr_node = edge->getParent();
-            if (pr_node->isConstant()) {
-                int ch_port = edge->getOutputNum();
-                inputs.erase(inputs.begin() + ch_port);
-            }
+            inputs.emplace_back(pr->output(pr_port));
         }
 
         return inputs;

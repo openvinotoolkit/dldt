@@ -19,6 +19,7 @@
 #include "ngraph/variant.hpp"
 #include "shared_test_classes/base/layer_test_utils.hpp"
 #include "functional_test_utils/core_config.hpp"
+#include "cpp_interfaces/interface/ie_internal_plugin_config.hpp"
 
 namespace LayerTestsUtils {
 
@@ -309,6 +310,8 @@ void LayerTestsCommon::LoadNetwork() {
     cnnNetwork = InferenceEngine::CNNNetwork{function};
     CoreConfiguration(this);
     ConfigureNetwork();
+    if (targetDevice == "CPU")
+        configuration.insert({CONFIG_KEY_INTERNAL(DUMP_CONSTANT_NODES), CONFIG_VALUE(YES)});
     executableNetwork = core->LoadNetwork(cnnNetwork, targetDevice, configuration);
 }
 
