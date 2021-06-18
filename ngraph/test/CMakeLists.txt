@@ -99,6 +99,7 @@ set(SRC
     span.cpp
     specialize_function.cpp
     tensor.cpp
+    threading.cpp
     type_prop/assign.cpp
     type_prop/avg_pool.cpp
     type_prop/batch_norm.cpp
