@@ -923,7 +923,6 @@ cdef class ExecutableNetwork:
             inputs[in_.first.decode()] = input_info_ptr
         return inputs
 
-
     ## A dictionary that maps output layer names to CDataPtr objects
     @property
     def outputs(self):
@@ -1249,7 +1248,6 @@ cdef class InferRequest:
                                             "cpu_time": info.cpu_time, "execution_index": info.execution_index}
         return profile
 
-
     ## Current infer request inference time in milliseconds
     @property
     def latency(self):
@@ -1330,7 +1328,6 @@ cdef class IENetwork:
             input_info_ptr._ptr_network = &self.impl
             inputs[input.first.decode()] = input_info_ptr
         return inputs
-
 
     ## A dictionary that maps output layer names to DataPtr objects
     @property
