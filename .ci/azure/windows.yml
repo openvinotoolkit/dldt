@@ -130,7 +130,7 @@ jobs:
     continueOnError: false
 
   - script: |
-      powershell -command "Invoke-WebRequest  -Uri  https://d30ikxcvcet9xo.cloudfront.net/repositories/openvino/ci_dependencies/test/samples_smoke_tests_data.zip -OutFile  $(REPO_DIR)\tests\samples_smoke_tests\samples_smoke_tests_data.zip"
+      powershell -command "Invoke-WebRequest  -Uri  https://storage.openvinotoolkit.org/repositories/openvino/ci_dependencies/test/samples_smoke_tests_data.zip -OutFile  $(REPO_DIR)\tests\samples_smoke_tests\samples_smoke_tests_data.zip"
       powershell -command "Expand-Archive -Force -Path $(REPO_DIR)\tests\samples_smoke_tests\samples_smoke_tests_data.zip $(REPO_DIR)\tests\samples_smoke_tests"
       python -m pip install  --upgrade pip
       python -m pip install -r $(REPO_DIR)\tests\samples_smoke_tests\requirements.txt
