@@ -3,7 +3,7 @@ These test executes IE samples on pregenerated IR
 1. To run tests required installing some dependencies: 
     - pip3 install -r requirements.txt
 
-2. Download archive with models and validation set: [samples tests data](https://d30ikxcvcet9xo.cloudfront.net/repositories/openvino/ci_dependencies/test/samples_smoke_tests_data.zip)
+2. Download archive with models and validation set: [samples tests data](https://storage.openvinotoolkit.org/repositories/openvino/ci_dependencies/test/samples_smoke_tests_data.zip)
 3. Set environment variables:
 a. Required:
 ```sh
