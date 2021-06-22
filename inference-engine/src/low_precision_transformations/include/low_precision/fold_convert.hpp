@@ -12,11 +12,10 @@ namespace ngraph {
 namespace pass {
 namespace low_precision {
 
-class TRANSFORMATIONS_API FoldConvertTransformation : public LayerTransformation {
+class LP_TRANSFORMATIONS_API FoldConvertTransformation : public LayerTransformation {
 public:
-    FoldConvertTransformation(const Params& params) : LayerTransformation(params) {}
-    ~FoldConvertTransformation() override {}
-    void registerMatcherIn(GraphRewrite& pass, TransformationContext& context) const override;
+    NGRAPH_RTTI_DECLARATION;
+    FoldConvertTransformation(const Params& params = Params());
     bool transform(TransformationContext& context, ngraph::pattern::Matcher &m) const override;
     bool canBeTransformed(const TransformationContext& context, std::shared_ptr<Node> layer) const override;
     bool isPrecisionPreserved(std::shared_ptr<Node> layer) const noexcept override;

@@ -64,7 +64,7 @@ public:
         bool transformed;
     };
 
-    ngraph::pass::low_precision::LayerTransformation::Params params;
+    TestTransformationParams params;
     Actual actual;
     Expected expected;
 };
@@ -446,6 +446,7 @@ const std::vector<ConvolutionBackpropDataTransformationTestValues> testValues = 
 };
 
 INSTANTIATE_TEST_CASE_P(
+    // TODO: LPT: not implemented
     smoke_LPT,
     ConvolutionBackpropDataTransformation,
     ::testing::Combine(
