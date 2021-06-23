@@ -18,7 +18,28 @@ intel_config_flag_apply_settings(
       RttiEnabled
   )
 
+if((CMAKE_C_COMPILER_ID MATCHES "^Clang$") OR (CMAKE_CXX_COMPILER_ID MATCHES "^Clang$"))
+  intel_config_flag_apply_settings(
+      CompilerOptions
+      CMAKE_CXX_FLAGS
+      ALL_PATTERN ""
+      SET_RAW
+        -stdlib=libc++
+    )
+endif()
 # ========================================= Source/Header files ========================================
+if (CLDNN_WITH_SYCL)
+  # TODO: Setup proper compilation flags. Common ones doesn't work as some of them are not recognized by dpc++ compiler
+  set(CMAKE_CXX_FLAGS "-fsycl")
+  set(CMAKE_CXX_COMPILER ${SYCL_COMPILER})
+  intel_config_flag_apply_settings(
+    CompilerOptions
+    CMAKE_CXX_FLAGS
+    ALL_PATTERN ""
+    SET_RAW
+      -stdlib=libstdc++
+  )
+endif()
 
 set(__CLDNN_Directory__main           "${CMAKE_CURRENT_SOURCE_DIR}")
 set(__CLDNN_Label__main                "")
@@ -26,7 +47,7 @@ file(GLOB __CLDNN_Sources__main
     "${__CLDNN_Directory__main}/*.h"
     "${__CLDNN_Directory__main}/*.hpp"
     "${__CLDNN_Directory__main}/*.cpp"
-  )
+)
 
 file(GLOB __CLDNN_Sources__ocl
     "${__CLDNN_Directory__main}/ocl/*.h"
@@ -34,10 +55,24 @@ file(GLOB __CLDNN_Sources__ocl
     "${__CLDNN_Directory__main}/ocl/*.cpp"
 )
 
+file(GLOB __CLDNN_Sources__sycl
+    "${__CLDNN_Directory__main}/sycl/*.h"
+    "${__CLDNN_Directory__main}/sycl/*.hpp"
+    "${__CLDNN_Directory__main}/sycl/*.cpp"
+)
+
 set(__CLDNN_AllSources
     ${__CLDNN_Sources__main}
     ${__CLDNN_Sources__ocl}
   )
+
+# if (CLDNN_WITH_OCL)
+# list(APPEND __CLDNN_AllSources ${__CLDNN_Sources__ocl})
+# endif()
+
+if (CLDNN_WITH_SYCL)
+  list(APPEND __CLDNN_AllSources ${__CLDNN_Sources__sycl})
+endif()
 
 # =============================================== Filters ==============================================
 
@@ -68,6 +103,9 @@ target_link_libraries("${CLDNN_BUILD__PROJ}" PRIVATE
     clDNN_OpenCL
     openvino::itt
   )
+if (CLDNN_WITH_SYCL)
+  target_link_libraries("${CLDNN_BUILD__PROJ}" PUBLIC ${SYCL_LIBRARY})
+endif()
 
 if(WIN32)
   target_link_libraries("${CLDNN_BUILD__PROJ}" PRIVATE setupapi)

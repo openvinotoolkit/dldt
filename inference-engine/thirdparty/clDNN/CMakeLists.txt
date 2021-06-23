@@ -7,8 +7,23 @@ include(CheckCXXCompilerFlag)
 
 # Register Intel helper modules.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/utils/build/cmake/modules")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(IntelHelpers)
 
+if (GPU_BACKEND STREQUAL "SYCL")
+  find_package(SYCL REQUIRED)
+  set(CLDNN_WITH_SYCL ON CACHE BOOL "SYCL engine is enabled/disabled" FORCE)
+  set(CLDNN_WITH_OCL ON CACHE BOOL "OCL engine is enabled/disabled" FORCE)
+  add_definitions(-DCLDNN_WITH_SYCL=1)
+  add_definitions(-DCLDNN_WITH_OCL=1)
+elseif(GPU_BACKEND STREQUAL "OCL")
+  set(CLDNN_WITH_SYCL OFF CACHE BOOL "SYCL engine is enabled/disabled" FORCE)
+  set(CLDNN_WITH_OCL ON CACHE BOOL "OCL engine is enabled/disabled" FORCE)
+  add_definitions(-DCLDNN_WITH_SYCL=0)
+  add_definitions(-DCLDNN_WITH_OCL=1)
+else()
+message(FATAL_ERROR "Unsupported GPU backend: ${GPU_BACKEND}")
+endif()
 
 # ======================================================================================================
 # ==================================== BUILD CONFIGURATIONS (part 1) ===================================
@@ -658,13 +673,13 @@ endif()
 # NOTE: When compiling with Clang, use the flags below for C++ files. These flags cannot be enabled when compiling
 #       C files.
 if((CMAKE_C_COMPILER_ID MATCHES "^Clang$") OR (CMAKE_CXX_COMPILER_ID MATCHES "^Clang$"))
-  intel_config_flag_apply_settings(
-      CompilerOptions
-      CMAKE_CXX_FLAGS
-      ALL_PATTERN ""
-      SET_RAW
-        -stdlib=libc++
-    )
+    intel_config_flag_apply_settings(
+        CompilerOptions
+        CMAKE_CXX_FLAGS
+        ALL_PATTERN ""
+        SET_RAW
+          -stdlib=libc++
+      )
 endif()
 
 unset(__CLDNN_RtType)
