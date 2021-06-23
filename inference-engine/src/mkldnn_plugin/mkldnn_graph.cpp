@@ -39,6 +39,7 @@
 #include "utils/node_dumper.h"
 #include "utils/ngraph_utils.hpp"
 #include "utils/cpu_utils.hpp"
+#include "utils/verbose.h"
 
 #include <ngraph/node.hpp>
 #include <ngraph/function.hpp>
@@ -810,24 +811,25 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
 
     ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
 
-    for (int i = 0; i < graphNodes.size(); i++) {
+    for (auto &node : graphNodes) {
         if (request != nullptr) {
             request->ThrowIfCanceled();
         }
 
-        PERF(graphNodes[i]);
+        PERF(node);
 
         if (batch > 0)
-            graphNodes[i]->setDynamicBatchLim(batch);
+            node->setDynamicBatchLim(batch);
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(graphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(node));
 
-        if (!graphNodes[i]->isConstant()) {
-            OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, graphNodes[i]->profiling.execute);
-            graphNodes[i]->execute(stream);
+        if (!node->isConstant()) {
+            OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, node->profiling.execute);
+            node->execute(stream);
         }
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(graphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(print(node, config.debugCaps.verbose));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(node));
     }
 
     if (infer_count != -1) infer_count++;
