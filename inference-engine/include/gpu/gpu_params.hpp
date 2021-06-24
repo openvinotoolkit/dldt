@@ -63,6 +63,8 @@ DECLARE_GPU_PARAM_VALUE(VA_SHARED);
 */
 DECLARE_GPU_PARAM_KEY(OCL_CONTEXT, gpu_handle_param);
 
+DECLARE_GPU_PARAM_KEY(OCL_QUEUES, std::vector<gpu_handle_param>);
+
 /**
 * @brief This key identifies video acceleration device/display handle
 * in a shared context or shared memory blob parameter map

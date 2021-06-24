@@ -23,6 +23,7 @@ class CLDNNExecNetwork;
 
 class CLDNNInferRequest : public InferenceEngine::IInferRequestInternal {
 public:
+    using Ptr = std::shared_ptr<CLDNNInferRequest>;
     // make sure all blobs and cldnn::memory objects
     // are in place and valid
     void checkBlobs() override;
@@ -44,13 +45,29 @@ public:
     void SetGraph(std::shared_ptr<CLDNNGraph> graph);
     void EnableProfiling() { m_useProfiling = true; }
     void EnableStreams() { m_useStreams = true; }
+    void EnableExternalQueue() { m_useExternalQueue = true; }
 
-protected:
-    std::map<std::string, cldnn::memory::ptr> inputsMemory;
+    void preprocess();
+    void enqueue();
+    void wait();
+    void postprocess();
+
+    void preprocess_dynamic();
+    void enqueue_dynamic();
+    void wait_dynamic();
+    void postprocess_dynamic();
+
+    bool use_external_queue() const { return m_useExternalQueue; }
+
+private:
+    InferenceEngine::BlobMap _gpuInputs;
+    InferenceEngine::BlobMap _gpuOutputs;
+    std::map<std::string, cldnn::primitive_id> inputsMap;
     std::map<std::string, cldnn::primitive_id> outputsMap;
 
     bool m_useProfiling;
     bool m_useStreams;
+    bool m_useExternalQueue;
     std::shared_ptr<CLDNNGraph> m_graph;
 
     // dynamic batch stuff
@@ -58,24 +75,26 @@ protected:
     std::map<std::string, std::vector<buf_info>> batchOutputs;
     InferenceEngine::IStreamsExecutor* streamExecutor = nullptr;
 
-    InferenceEngine::Blob::Ptr createInputBlob(const InferenceEngine::TensorDesc& desc, uint8_t* mem_ptr = nullptr);
-    InferenceEngine::Blob::Ptr createOutputBlob(const InferenceEngine::TensorDesc& desc, uint8_t* mem_ptr = nullptr);
-    void copyOutputData(cldnn::memory::ptr outputMemory, InferenceEngine::Blob::Ptr bptr, buf_info* bi = nullptr);
-    void copyInputData(std::shared_ptr<cldnn::network> network, const cldnn::primitive_id &inputName,
-                       const cldnn::layout& inputLayout, const InferenceEngine::Blob &inputBlob,
-                       buf_info* bi = nullptr);
+    void prepare_input(const cldnn::primitive_id &inputName, InferenceEngine::Blob::Ptr inputBlob);
+    void prepare_output(const cldnn::primitive_id &outputName, InferenceEngine::Blob::Ptr outputBlob);
+    void allocate_inputs();
+    void allocate_outputs();
 
-    void input_attach(cldnn::primitive_id name, cldnn::memory::ptr inputMem);
-    void input_alloc(cldnn::primitive_id name, const cldnn::layout& layout);
-    void AllocateInputs();
-    void AllocateOutputs();
-    void AllocateInputsDyn();
-    void AllocateOutputsDyn();
-    void execAndParse();
-    void execAndParseDyn();
+    void prepare_input_dynamic(const cldnn::primitive_id &inputName, const InferenceEngine::Blob &inputBlob);
+    void allocate_inputs_dynamic();
+    void allocate_outputs_dynamic();
 
-    void PrepareInput(const cldnn::primitive_id &inputName, const InferenceEngine::Blob &inputBlob);
-    void PrepareInputDyn(const cldnn::primitive_id &inputName, const InferenceEngine::Blob &inputBlob);
+    InferenceEngine::Blob::Ptr create_input_host_blob(const InferenceEngine::TensorDesc& desc, uint8_t* mem_ptr = nullptr);
+    InferenceEngine::Blob::Ptr create_output_host_blob(const InferenceEngine::TensorDesc& desc, uint8_t* mem_ptr = nullptr);
+    InferenceEngine::Blob::Ptr create_device_blob(const InferenceEngine::TensorDesc& desc, const cldnn::layout& layout);
+
+    void copy_output_data(cldnn::memory::ptr outputMemory, InferenceEngine::Blob::Ptr bptr, buf_info* bi = nullptr);
+    void copy_input_data(std::shared_ptr<cldnn::network> network, const cldnn::primitive_id &inputName,
+                         const cldnn::layout& inputLayout, const InferenceEngine::Blob &inputBlob,
+                         buf_info* bi = nullptr);
+
+    std::map<cldnn::primitive_id, cldnn::network_output> internal_outputs;
+    std::vector<std::map<cldnn::primitive_id, cldnn::network_output>> internal_outputs_dynamic;
 };
 
 };  // namespace CLDNNPlugin

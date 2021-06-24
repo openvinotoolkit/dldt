@@ -50,7 +50,7 @@ TEST(basic, test1) {
     topology.add(convolution("conv2", { "reorder2" }, { "concat" }));
 
     program_impl::ptr prog = program_impl::build_program(engine, *topology.get(), build_opt, false);
-    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine, prog);
+    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine.create_stream(), prog);
     network network(net);
 
     network.set_input_data("input", input);
@@ -100,7 +100,7 @@ TEST(add_intermediate_gpu, test1)
 
     program_impl_wrapper::build(*prog);
 
-    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine, prog);
+    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine.create_stream(), prog);
     network network(net);
     network.set_input_data("input", input);
     auto outputs = network.execute();
@@ -164,7 +164,7 @@ TEST(add_intermediate_gpu, test2)
 
     program_impl_wrapper::build(*prog);
 
-    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine, prog);
+    std::shared_ptr<cldnn::network_impl> net = network_impl::allocate_network(engine.create_stream(), prog);
     network network(net);
     network.set_input_data("input", input);
     auto outputs = network.execute();
