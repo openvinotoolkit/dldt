@@ -9,13 +9,8 @@ class TestTFRoll(CommonTFLayerTest):
 
         # Create the graph and model
         with tf.compat.v1.Session() as sess:
-            tf_x_shape = x_shape.copy()
-            # reshaping
-            if len(tf_x_shape) >= 3:
-                tf_x_shape.append(tf_x_shape.pop(1))
-
-            x = tf.compat.v1.placeholder(input_type, tf_x_shape, 'Input')
-            roll = tf.roll(x, shift=shift, axis=axis)
+            x = tf.compat.v1.placeholder(input_type, x_shape, 'Input')
+            tf.roll(x, shift=shift, axis=axis)
 
             tf.compat.v1.global_variables_initializer()
             tf_net = sess.graph_def
@@ -30,8 +25,8 @@ class TestTFRoll(CommonTFLayerTest):
                  dict(shift=[11, -8], axis=[-1, -2], x_shape=[3, 4, 3, 1], input_type=tf.int32),
                  dict(shift=[7, -2, 5], axis=[0, -1, -1], x_shape=[5, 2, 3, 7], input_type=tf.int64),
                  dict(shift=[3, 7], axis=[0, 1], x_shape=[2, 4, 3, 5, 4], input_type=tf.half),
-                 pytest.param(dict(shift=[1, -2], axis=[0, 1], x_shape=[2, 4, 3, 5], input_type=tf.float32),
-                              marks=pytest.mark.precommit)]
+                 dict(shift=[1, -2], axis=[0, 1], x_shape=[2, 4, 3, 5], input_type=tf.float32),
+                 ]
 
     @pytest.mark.parametrize("params", test_data)
     @pytest.mark.nightly

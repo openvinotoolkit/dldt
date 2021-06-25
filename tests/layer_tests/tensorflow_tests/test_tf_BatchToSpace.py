@@ -14,11 +14,6 @@ class TestBatchToSpace(CommonTFLayerTest):
             Input->BatchToSpace        =>      Input->BatchToSpace
 
         """
-
-        #
-        #   Create Tensorflow model
-        #
-
         import tensorflow as tf
 
         tf.compat.v1.reset_default_graph()
@@ -33,12 +28,6 @@ class TestBatchToSpace(CommonTFLayerTest):
             tf.compat.v1.global_variables_initializer()
             tf_net = sess.graph_def
 
-        #
-        #   Create reference IR net
-        #   Please, specify 'type': 'Input' for input node
-        #   Moreover, do not forget to validate ALL layer attributes!!!
-        #
-
         ref_net = None
 
         return tf_net, ref_net
@@ -50,13 +39,10 @@ class TestBatchToSpace(CommonTFLayerTest):
              out_shape=[1, 2, 2, 3]),
         dict(in_shape=[60, 100, 30, 30], block_shape_value=[3, 2], crops_value=[[1, 5], [4, 1]],
              out_shape=[2, 2, 1, 1]),
-        # todo: enable these tests after supporting the general case on CPU
-        # dict(in_shape=[4, 1, 1, 1], block_shape_value=[2, 1, 2], crops_value=[[0, 0], [0, 0], [0, 0]],
-        #      out_shape=[]),
-        # dict(in_shape=[12, 1, 1, 3], block_shape_value=[3, 2, 2], crops_value=[[1, 0], [0, 1], [1, 1]],
-        #      out_shape=[1, 2, 1, 4]),
-        # dict(in_shape=[36, 2, 2, 3], block_shape_value=[2, 3, 3], crops_value=[[1, 0], [0, 0], [2, 2]],
-        #      out_shape=[2, 3, 6, 5])
+        dict(in_shape=[4, 1, 1, 1], block_shape_value=[2, 1, 2], crops_value=[[0, 0], [0, 0], [0, 0]],
+             out_shape=[]),
+        dict(in_shape=[36, 2, 2, 3], block_shape_value=[2, 3, 3], crops_value=[[1, 0], [0, 0], [2, 2]],
+             out_shape=[2, 3, 6, 5])
     ]
 
     @pytest.mark.parametrize("params", test_data_4D)
@@ -68,9 +54,8 @@ class TestBatchToSpace(CommonTFLayerTest):
     test_data_5D = [
         dict(in_shape=[72, 2, 1, 4, 2], block_shape_value=[3, 4, 2], crops_value=[[1, 2], [0, 0], [3, 0]],
              out_shape=[3, 3, 4, 5, 2]),
-        # todo: enable these tests after supporting the general case on CPU
-        # dict(in_shape=[144, 2, 1, 4, 1], block_shape_value=[3, 4, 2, 2],
-        #      crops_value=[[1, 2], [0, 0], [3, 0], [0, 0]], out_shape=[3, 3, 4, 5, 2]),
+        dict(in_shape=[144, 2, 1, 4, 1], block_shape_value=[3, 4, 2, 2],
+             crops_value=[[1, 2], [0, 0], [3, 0], [0, 0]], out_shape=[3, 3, 4, 5, 2]),
     ]
 
     @pytest.mark.parametrize("params", test_data_5D)

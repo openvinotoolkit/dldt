@@ -22,7 +22,8 @@ from mo.front.common.register_custom_ops import update_extractors_with_extension
 from mo.front.extractor import restore_edges, extract_node_attrs, remove_control_dependency_inputs, add_outputs_identity
 from mo.front.tf.extractor import get_tf_edges, create_tf_edge, tf_op_extractor, tf_op_extractors
 from mo.front.tf.loader import load_tf_graph_def, protobuf2nx
-from mo.graph.graph import Graph
+from mo.graph.graph import Graph, Node
+from mo.middle.pattern_match import for_graph_and_each_sub_graph_recursively
 from mo.utils import tensorboard_util
 from mo.utils.error import Error
 from mo.utils.telemetry_utils import send_op_names_info, send_shapes_info, send_framework_info
@@ -35,6 +36,10 @@ class TFLoader(Loader):
 
     def load(self, graph: Graph):
         argv = graph.graph['cmd_params']
+
+        if argv.disable_nhwc_to_nchw and argv.force_nhwc_to_nchw:
+            raise Error('Cannot specify both --disable_nhwc_to_nchw and --force_nhwc_to_nchw command line parameters')
+
         if argv.tensorflow_custom_layer_libraries:
             libraries = argv.tensorflow_custom_layer_libraries.split(',')
             for library in libraries:
@@ -42,22 +47,21 @@ class TFLoader(Loader):
                 tf_v1.load_op_library(library)
 
         graph_def, variables_values, framework = load_tf_graph_def(graph_file_name=argv.input_model,
-                                                        is_binary=not argv.input_model_is_text,
-                                                        checkpoint=argv.input_checkpoint,
-                                                        user_output_node_names_list=argv.output,
-                                                        model_dir=argv.saved_model_dir,
-                                                        meta_graph_file=argv.input_meta_graph,
-                                                        saved_model_tags=argv.saved_model_tags)
+                                                                   is_binary=not argv.input_model_is_text,
+                                                                   checkpoint=argv.input_checkpoint,
+                                                                   user_output_node_names_list=argv.output,
+                                                                   model_dir=argv.saved_model_dir,
+                                                                   meta_graph_file=argv.input_meta_graph,
+                                                                   saved_model_tags=argv.saved_model_tags)
         send_framework_info(framework)
 
         try:
             tf_v1.import_graph_def(graph_def, name='')
         except:
-            log.warning("TensorFlow post-processing of loaded model was unsuccessful. "
-                        "This is an optional step that Model Optimizer performs for any input model but it is not usually "
-                        "required for all models."
-                        "It likely means that the original model is ill-formed. "
-                        "Model Optimizer will continue converting this model.")
+            log.warning("TensorFlow post-processing of loaded model was unsuccessful. This is an optional step that "
+                        "Model Optimizer performs for any input model but it is not usually required for all models. "
+                        "It likely means that the original model is ill-formed. Model Optimizer will continue "
+                        "converting this model.")
 
         log.debug("Number of nodes in graph_def: {}".format(len(graph_def.node)))  # pylint: disable=no-member
 
@@ -78,9 +82,6 @@ class TFLoader(Loader):
             ) from e
 
         graph.__setattr__('name', argv.model_name)
-        # 'layout' parameter change may cause an issue in EltwiseInputReshape replacer
-        # and convert_nhwc_to_nchw(graph)
-        graph.graph['layout'] = 'NCHW' if argv.disable_nhwc_to_nchw else 'NHWC'
         graph.graph['fw'] = 'tf'
 
         graph.graph['variables_values'] = variables_values
@@ -100,5 +101,65 @@ class TFLoader(Loader):
 
         graph.check_empty_graph('protobuf2nx. It may happen due to problems with loaded model')
         extract_node_attrs(graph, lambda node: tf_op_extractor(node, check_for_duplicates(tf_op_extractors)))
+
+        graph.graph['layout'] = 'NCHW' if argv.disable_nhwc_to_nchw else 'NHWC'
+
+        # try to detect layout from the nodes of the graph. If there are no convolution nodes in N(D)HWC layout then we
+        # consider that the graph is in NCHW layout and no layout conversion should be performed
+        if not argv.force_nhwc_to_nchw and not argv.disable_nhwc_to_nchw:
+            NHWC_conv_detected = graph_or_sub_graph_has_nhwc_ops(graph)
+            if not NHWC_conv_detected:
+                if not argv.silent and not argv.disable_nhwc_to_nchw:
+                    print('The TensorFlow model does not contain Convolution operations with N(D)HWC layout so the '
+                          'model layout conversion from NHWC to NCHW has been disabled (the same effect as if you '
+                          'specify "--disable_nhwc_to_nchw" command line parameter). If you still want to enable the '
+                          'layout conversion mechanism add "--force_nhwc_to_nchw" command line parameter.')
+                for_graph_and_each_sub_graph_recursively(graph, update_cmd_params_and_layout)
+
         send_op_names_info(framework, graph)
         send_shapes_info(framework, graph)
+
+
+def is_node_layout_nhwc(node: Node):
+    """
+    Check the layout attribute of specific operations and return True if any of them has layout NHWC.
+    :param node: Node to check
+    :return: Boolean result of the check
+    """
+    if node.soft_get('op') in ["Conv2D", "DepthwiseConv2dNative", "Conv3D", "Conv2DBackpropInput",
+                               "Conv3DBackpropInputV2"]:
+        if node.soft_get('layout') in ["NHWC", "NDHWC"]:
+            log.debug('Detected convolution node with NHWC layout: "{}"'.format(node.soft_get('name', node.id)))
+            return True
+    return False
+
+
+def graph_or_sub_graph_has_nhwc_ops(graph: Graph):
+    """
+    Checks that a graph or any sub-graph (inside Loop) operation contains nodes with NHWC layout.
+    :param graph: main graph to check
+    :return: Boolean result of the check
+    """
+    NHWC_conv_detected = False
+    for node in graph.get_op_nodes():
+        if is_node_layout_nhwc(node):
+            NHWC_conv_detected = True
+            break
+
+        # for the Loop node we need to check that the body does not contain marker ops as well
+        if node.op == 'Loop':
+            NHWC_conv_detected |= graph_or_sub_graph_has_nhwc_ops(node.body)
+        # TODO check for If op when it is implemented
+    return NHWC_conv_detected
+
+
+def update_cmd_params_and_layout(graph: Graph):
+    """
+    Updates "cmd_params" and "layout" attribute if the model as the model has only NCHW layout operations.
+    :param graph: graph to update attributes
+    :return: Nones
+    """
+    if 'cmd_params' in graph.graph:
+        graph.graph['cmd_params'].disable_nhwc_to_nchw = True
+    if 'layout' in graph.graph:
+        graph.graph['layout'] = 'NCHW'
