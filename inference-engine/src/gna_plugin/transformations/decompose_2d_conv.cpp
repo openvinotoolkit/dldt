@@ -1,4 +1,4 @@
-// Cngraph::opyright (C) 2021 Intel Corporation
+// Copyright (C) 2021 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -84,9 +84,9 @@ static bool VerifyAndGetConvParams(std::shared_ptr<ngraph::opset7::Convolution> 
     // We support only 2D conv batch 1
     if (conv->get_dilations().size() != 2 ||
         conv->get_strides().size() != 2 ||
-        input.get_shape()[0] != 1 /*||
-        filters.get_shape()[2] == 1 ||
-        filters.get_shape()[3] == 1*/) {
+        input.get_shape()[0] != 1 ) {
+        //|| filters.get_shape()[2] == 1 ||
+        //filters.get_shape()[3] == 1)
         return false;
     }
 
@@ -253,7 +253,8 @@ static bool ShouldDecompose(const GraphData& graph_data, const ConvData& conv_da
         out_data.conv_count++;
 
     // Currently we are able to split only convolutions without pooling in horizontal dimention
-    if (out_data.conv_count > GNA_MAX_PERMUTE_COL_COUNT || ((maxpool_data.pool_size_width > 1 || maxpool_data.pool_stride_width > 1) && out_data.conv_count > 1))
+    if (out_data.conv_count > GNA_MAX_PERMUTE_COL_COUNT ||
+        ((maxpool_data.pool_size_width > 1 || maxpool_data.pool_stride_width > 1) && out_data.conv_count > 1))
         return false;
 
     // GNA supported features - there is no need to decompose such convolution
@@ -445,7 +446,8 @@ static std::vector<std::shared_ptr<ngraph::opset7::Constant>> SplitConv2DFilters
     return result;
 }
 
-static std::vector<std::shared_ptr<ngraph::opset7::Constant>> CreateSplit(const GraphData& graph_data, ConvData& conv_data, const OutData& out_data, ngraph::OutputVector& split_planes) {
+static std::vector<std::shared_ptr<ngraph::opset7::Constant>> CreateSplit(const GraphData& graph_data,
+    ConvData& conv_data, const OutData& out_data, ngraph::OutputVector& split_planes) {
     const ngraph::Output<ngraph::Node>& filters = graph_data.conv->input_value(1);
     auto filter_values = std::dynamic_pointer_cast<ngraph::opset7::Constant>(filters.get_node_shared_ptr());
 
@@ -457,8 +459,9 @@ static std::vector<std::shared_ptr<ngraph::opset7::Constant>> CreateSplit(const 
         auto transpose_before_channel_wise_split = std::make_shared<ngraph::opset7::Transpose>(reshape_before_transpose,
             ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 2 }, { 1ll, 0ll })->output(0));
 
-        //TODO: in what cases is this needed? Used only when the conv input plane is beyond GNA limit. It transposes to the same layout as already done in last step...?
-        //auto reshape_after_transpose = std::make_shared<ngraph::opset7::Reshape>(transpose_before_channel_wise_split,
+        // TODO: in what cases is this needed? Used only when the conv input plane is beyond GNA limit.
+        // It transposes to the same layout as already done in last step...?
+        // auto reshape_after_transpose = std::make_shared<ngraph::opset7::Reshape>(transpose_before_channel_wise_split,
         //    ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 }, { (size_t)out_data.conv_count,
         //        shape_size(out_data.padded_input_plane->get_shape()) / out_data.conv_count }), false);
 
@@ -515,7 +518,8 @@ static void FlattenKernel(const GraphData& graph_data, const ConvData& conv_data
 
     // Flattening
     auto flatten_dilated_permuted_input = std::make_shared<ngraph::opset7::Reshape>(permuted_dilated_chunks,
-        ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 }, { (size_t)1, (conv_data.pads_begin_width + conv_data.input_width + conv_data.pads_end_width) *
+        ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 },
+            { (size_t)1, (conv_data.pads_begin_width + conv_data.input_width + conv_data.pads_end_width) *
         conv_data.input_channel_count * out_data.output_height * conv_data.filter_height }), false);
 
     copy_runtime_info(graph_data.conv, { dilated_chunks_concat, flatten_dilated_permuted_input, permuted_dilated_chunks });
@@ -570,7 +574,8 @@ static std::shared_ptr<ngraph::Node> CalculateFlatConv(const GraphData& graph_da
                     ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 4 }, { 0ll, 3ll, 1ll, 2ll })->output(0));
                 // conv
                 auto conv = std::make_shared<ngraph::opset7::Convolution>(nchw_input, filters,
-                    ngraph::Strides{ 1, stride_width }, ngraph::CoordinateDiff{ 0, 0 }, ngraph::CoordinateDiff{ 0, 0 }, ngraph::Strides{ 1, 1 }, ngraph::op::PadType::VALID);
+                    ngraph::Strides{ 1, stride_width }, ngraph::CoordinateDiff{ 0, 0 }, ngraph::CoordinateDiff{ 0, 0 },
+                    ngraph::Strides{ 1, 1 }, ngraph::op::PadType::VALID);
                 std::string conv_name = source_conv2d->get_friendly_name() + "_H_" + std::to_string(h_index) + "_CH_" + std::to_string(c_index);
                 conv->set_friendly_name(conv_name);
 
@@ -627,14 +632,16 @@ static std::shared_ptr<ngraph::Node> CalculateFlatConv(const GraphData& graph_da
             size_t padded_row_width = conv_data.pads_begin_width + conv_data.input_width + conv_data.pads_end_width;
             size_t padded_row_flat_width = shape_size(nhwc_conv_y_input.get_shape());
             nhwc_conv_y_input = std::make_shared<ngraph::opset7::Reshape>(nhwc_conv_y_input,
-                ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 4 }, ngraph::Shape{ 1ull, 1ull, padded_row_width, padded_row_flat_width / padded_row_width }), false);
+                ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 4 },
+                    ngraph::Shape{ 1ull, 1ull, padded_row_width, padded_row_flat_width / padded_row_width }), false);
         }
 
         // valid 1D convolution wrapped with permutes NHWC => NCHW => conv => NCHW => NHWC
         // activation function can be fused with convolution only if it is not split
         auto nhwc_y_output = nhwc_conv_1d(graph_data.conv, nhwc_conv_y_input, h_1_filters[conv_index], conv_index ? nullptr : graph_data.bias_const,
             conv_data.filter_stride_width, pool_data.pool_size_width, pool_data.pool_stride_width,
-            graph_data.max_pool ? graph_data.max_pool->get_rounding_type() : ngraph::op::RoundingType::FLOOR, out_data.conv_count == 1 ? graph_data.af : nullptr, y);
+            graph_data.max_pool ? graph_data.max_pool->get_rounding_type() : ngraph::op::RoundingType::FLOOR,
+            out_data.conv_count == 1 ? graph_data.af : nullptr, y);
         result_chunks.push_back(nhwc_y_output);
         last_op = nhwc_y_output;
     }
