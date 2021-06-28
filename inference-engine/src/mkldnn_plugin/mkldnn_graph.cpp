@@ -811,24 +811,28 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
 
     ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
 
-    for (auto &node : graphNodes) {
-        if (request != nullptr) {
-            request->ThrowIfCanceled();
-        }
-
+    auto execute = [&](const MKLDNNNodePtr& node){
         PERF(node);
+        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, node->profiling.execute);
+
+        node->execute(stream);
+    };
+
+    for (const auto& node : graphNodes) {
+        if (request)
+            request->ThrowIfCanceled();
 
         if (batch > 0)
             node->setDynamicBatchLim(batch);
 
         ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(node));
 
-        if (!node->isConstant()) {
-            OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, node->profiling.execute);
-            node->execute(stream);
-        }
+        if (node->isConstant()) continue;
+
+        execute(node);
 
         ENABLE_CPU_DEBUG_CAP(print(node, config.debugCaps.verbose));
+
         ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(node));
     }
 

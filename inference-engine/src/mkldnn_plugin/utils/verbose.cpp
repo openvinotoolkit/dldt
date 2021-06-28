@@ -13,9 +13,9 @@ namespace MKLDNNPlugin {
  * Formating written in C using oneDNN format functions.
  * Can be rewritten in pure C++ if necessary
  */
-void print(const MKLDNNNodePtr& node, const std::string& verbose) {
+void print(const MKLDNNNodePtr& node, const std::string& verboseLvl) {
     // use C stoi version to avoid dealing with exceptions
-    if (verbose.empty() || stoi(verbose) < 1)
+    if (verboseLvl.empty() || stoi(verboseLvl) < 1)
         return;
 
     if (node->isConstant() ||

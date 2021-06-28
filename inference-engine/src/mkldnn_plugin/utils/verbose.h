@@ -9,7 +9,7 @@
 
 namespace MKLDNNPlugin {
 
-void print(const MKLDNNNodePtr& node, const std::string& verbose);
+void print(const MKLDNNNodePtr& node, const std::string& verboseLvl);
 
 } // namespace MKLDNNPlugin
 #endif // CPU_DEBUG_CAPS
