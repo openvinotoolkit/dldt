@@ -200,7 +200,8 @@ std::shared_ptr<ngraph::Function> AddFunction::getReference(
     const int constInputIndex,
     const std::vector<float>& constValues,
     const std::string& additionalLayer,
-    const std::string& operationType) {
+    const std::string& operationType,
+    const ngraph::element::Type operationPrecision) {
     std::shared_ptr<ngraph::Node> input1;
     std::shared_ptr<ngraph::Node> parent1;
     if (constInputIndex == 0) {
@@ -229,7 +230,7 @@ std::shared_ptr<ngraph::Function> AddFunction::getReference(
     std::shared_ptr<ngraph::Node> input2;
     if (constInputIndex == 1) {
         input2 = std::make_shared<ngraph::opset1::Constant>(
-            dequantizationAfter.empty() ? precision : element::f32,
+            precision2,
             inputShape,
             constValues);
     } else {
@@ -304,7 +305,9 @@ std::shared_ptr<ngraph::Function> AddFunction::getReference(
             ngraph::op::TemporaryReplaceOutputType(dequantizationOp1, element::f32).get(),
             ngraph::op::TemporaryReplaceOutputType(dequantizationOp2, element::f32).get());
 
-    NetworkHelper::setOutDataPrecisionForTypeRelaxed(add, dequantizationAfter.empty() ? precision : element::f32);
+    NetworkHelper::setOutDataPrecisionForTypeRelaxed(
+        add,
+        operationPrecision == ngraph::element::undefined ? (dequantizationAfter.empty() ? precision : element::f32) : operationPrecision);
     auto& rtInfo = add->get_rt_info();
     rtInfo["Variant::std::string"] = std::make_shared<VariantWrapper<std::string>>("add");
 
