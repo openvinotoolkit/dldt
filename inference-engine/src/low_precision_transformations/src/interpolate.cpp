@@ -38,7 +38,20 @@ bool InterpolateTransformation::transform(TransformationContext &context, ngraph
         return false;
     }
     interpolate = NetworkHelper::separateInStandaloneBranch(interpolate);
-    moveDequantizationAfter(context, interpolate, NetworkHelper::getDequantization(interpolate), true);
+
+    bool updatePrecision = false;
+    std::shared_ptr<opset1::Interpolate> interpolate1 = as_type_ptr<opset1::Interpolate>(interpolate);
+    if (interpolate1) {
+        const auto attrs = interpolate1->get_attrs();
+        updatePrecision = (attrs.mode == "nearest");
+    }
+    std::shared_ptr<opset4::Interpolate> interpolate4 = as_type_ptr<opset4::Interpolate>(interpolate);
+    if (interpolate4) {
+        const auto attrs = interpolate4->get_attrs();
+        updatePrecision = (attrs.mode == op::v4::Interpolate::InterpolateMode::nearest);
+    }
+
+    moveDequantizationAfter(context, interpolate, NetworkHelper::getDequantization(interpolate), updatePrecision);
     return true;
 }
 
@@ -76,9 +89,7 @@ bool InterpolateTransformation::canBeTransformed(const TransformationContext& co
         if (interpAttrs.axes.count(0) || interpAttrs.axes.count(1)) {
             return false;
         }
-        if (interpAttrs.mode != "nearest") {
-            return false;
-        }
+
         if (interpAttrs.pads_begin[0] != 0 || interpAttrs.pads_end[0] != 0 || interpAttrs.align_corners) {
             return false;
         }
@@ -87,10 +98,6 @@ bool InterpolateTransformation::canBeTransformed(const TransformationContext& co
     const auto interpolate4 = as_type_ptr<opset4::Interpolate>(layer);
     if (interpolate4) {
         const auto interpAttrs = interpolate4->get_attrs();
-
-        if (interpAttrs.mode != op::v4::Interpolate::InterpolateMode::nearest) {
-            return false;
-        }
 
         auto pads_begin = interpAttrs.pads_begin;
         for (size_t i = 0; i < pads_begin.size(); ++i) {
