@@ -198,8 +198,7 @@ TEST_P(Decompose2DConvTest, CompareWithRefs) {
 
 const std::vector<InferenceEngine::Precision> netPrecisions = {
     InferenceEngine::Precision::FP32,
-    //TODO: FP16 is currently not supported by the transform
-    //InferenceEngine::Precision::FP16
+    InferenceEngine::Precision::FP16
 };
 
 const std::vector<std::map<std::string, std::string>> configs = {
@@ -231,10 +230,9 @@ const std::vector<modelType> models = {
 const std::vector<std::vector<size_t>> input2DNHWC = { {1, 16, 16, 8} };
 const std::vector<std::vector<size_t >> kernels2D = { {3, 2} };
 const std::vector<std::vector<size_t >> strides2D = { {1, 1} };
-const std::vector<std::vector<ptrdiff_t>> padBegins2D = { {1, 2} };
+const std::vector<std::vector<ptrdiff_t>> padBegins2D = { {1, 1} };
 const std::vector<std::vector<ptrdiff_t>> padEnds2D = { {3, 1} };
-//TODO: dilation != 1 fails due to accuracy
-const std::vector<std::vector<size_t >> dilations2D = { {1, 1} };
+const std::vector<std::vector<size_t >> dilations2D = { {1, 1}, {2, 1} }; // , { 1, 2 } TODO: accuracy problem
 const std::vector<size_t> numOutChannels2D = { 4 };
 const std::vector<std::vector<size_t >> biases2D = { {1, 4, 1, 1} };
 const std::vector<std::vector<size_t >> transp_biases2D = { {1, 1, 1, 4} };
