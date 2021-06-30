@@ -16,7 +16,6 @@ public:
     virtual BlockedMemoryDesc createDesc(const InferenceEngine::Precision& precision, const InferenceEngine::SizeVector& srcDims) const {
         SizeVector order(srcDims.size());
         std::iota(order.begin(), order.end(), 0);
-//        return BlockedMemoryDesc(precision, srcDims, {srcDims, order});
         return BlockedMemoryDesc(precision, srcDims, srcDims, order);
     }
     virtual size_t getMinimalRank() const { return 0lu; }
@@ -38,7 +37,6 @@ public:
             moveElementBack(blkDims, channelsPos);
         }
 
-//        return BlockedMemoryDesc(precision, srcDims, {blkDims, order});
         return BlockedMemoryDesc(precision, srcDims, blkDims, order);
     }
     virtual size_t getMinimalRank() const { return 3lu; }
@@ -57,10 +55,11 @@ public:
         order.push_back(channelsPos);
 
         SizeVector blkDims = srcDims;
-        blkDims[channelsPos] = blkDims[channelsPos] / _blockSize + (blkDims[channelsPos] % _blockSize ? 1 : 0);
+        if (Shape::UNDEFINED_DIM != blkDims[channelsPos]) {
+            blkDims[channelsPos] = blkDims[channelsPos] / _blockSize + (blkDims[channelsPos] % _blockSize ? 1 : 0);
+        }
         blkDims.push_back(_blockSize);
 
-//        return BlockedMemoryDesc(precision, srcDims, {blkDims, order});
         return BlockedMemoryDesc(precision, srcDims, blkDims, order);
     }
     virtual size_t getMinimalRank() const { return 3lu; }
