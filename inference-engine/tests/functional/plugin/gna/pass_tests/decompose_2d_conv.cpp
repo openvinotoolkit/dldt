@@ -203,17 +203,17 @@ const std::vector<InferenceEngine::Precision> netPrecisions = {
 
 const std::vector<std::map<std::string, std::string>> configs = {
     {
-        {"GNA_DEVICE_MODE", "GNA_SW_EXACT"},
+        {"GNA_DEVICE_MODE", "GNA_SW_FP32"},
         {"GNA_SCALE_FACTOR_0", "1"},
         {"GNA_EXEC_TARGET", "GNA_TARGET_2_0"}
     }
 };
 
 const std::vector<op::PadType> padTypes = {
+        op::PadType::VALID,
         op::PadType::EXPLICIT,
         op::PadType::SAME_LOWER,
         op::PadType::SAME_UPPER,
-        op::PadType::VALID
 };
 
 const std::vector<modelType> models = {
@@ -227,16 +227,16 @@ const std::vector<modelType> models = {
     //modelType::TranspConvBcastAddMaxPoolActTransp,
 };
 
-const std::vector<std::vector<size_t>> input2DNHWC = { {1, 16, 16, 8} };
-const std::vector<std::vector<size_t >> kernels2D = { {3, 2} };
+const std::vector<std::vector<size_t>> input2DNHWC = { {1, 4, 4, 8} };
+const std::vector<std::vector<size_t >> kernels2D = { {1, 2} };
+const std::vector<std::vector<size_t >> kernels1D = { {1, 2}, {1, 3} };
 const std::vector<std::vector<size_t >> strides2D = { {1, 1} };
 const std::vector<std::vector<ptrdiff_t>> padBegins2D = { {1, 1} };
 const std::vector<std::vector<ptrdiff_t>> padEnds2D = { {3, 1} };
-const std::vector<std::vector<size_t >> dilations2D = { {1, 1}, {2, 1} }; // , { 1, 2 } TODO: accuracy problem
+const std::vector<std::vector<size_t >> dilations2D = { {1, 2} };
 const std::vector<size_t> numOutChannels2D = { 4 };
 const std::vector<std::vector<size_t >> biases2D = { {1, 4, 1, 1} };
 const std::vector<std::vector<size_t >> transp_biases2D = { {1, 1, 1, 4} };
-//TODO: maxpool 2D is currently not supported by this transform
 const std::vector<std::vector<size_t >> maxpool1D_pools = { {1, 2} };
 const std::vector<std::vector<size_t >> maxpool1D_strides = { {1, 1} };
 
