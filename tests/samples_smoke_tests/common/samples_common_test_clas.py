@@ -222,7 +222,9 @@ class SamplesCommonTestClass():
                 param['lb'] = os.path.join(Environment.env['test_data'], param['lb'])
 
     @staticmethod
-    def get_cmd_line(param, use_preffix=True, long_hyphen=[]):
+    def get_cmd_line(param, use_preffix=True, long_hyphen=None):
+        if long_hyphen is None:
+            long_hyphen = []
         line = ''
         for key in sorted(param.keys()):
             if use_preffix and any([x for x in long_hyphen if key == x]):
@@ -253,7 +255,7 @@ class SamplesCommonTestClass():
         stdout = stdout.split('\n')
         for line in stdout:
             if 'fps' in line.lower():
-                return float(re.findall("\d+\.\d+", line)[0])
+                return float(re.findall(r"\d+\.\d+", line)[0])
 
     @staticmethod
     def write_csv(sample_name, sample_type, cmd_perf, fps_perf):
@@ -263,12 +265,12 @@ class SamplesCommonTestClass():
             perf_writer.writerow([sample_name, sample_type, cmd_perf.rstrip(), fps_perf])
 
     @staticmethod
-    def get_empty_cmd_line(param, use_preffix=True, long_hyphen=[]):
+    def get_empty_cmd_line(param, use_preffix=True, long_hyphen=None):
         line = ''
         return line
 
     @staticmethod
-    def get_hello_cmd_line(param, use_preffix=True, long_hyphen=[]):
+    def get_hello_cmd_line(param, use_preffix=True, long_hyphen=None):
         line = ''
         for key in ['m', 'i', 'd']:
             if key in param:
@@ -279,7 +281,7 @@ class SamplesCommonTestClass():
         return line
 
     @staticmethod
-    def get_hello_shape_cmd_line(param, use_preffix=True, long_hyphen=[]):
+    def get_hello_shape_cmd_line(param, use_preffix=True, long_hyphen=None):
         line = ''
         for key in ['m', 'i', 'd', 'batch']:
             if key in param:
@@ -290,7 +292,7 @@ class SamplesCommonTestClass():
         return line
 
     @staticmethod
-    def get_hello_nv12_cmd_line(param, use_preffix=True, long_hyphen=[]):
+    def get_hello_nv12_cmd_line(param, use_preffix=True, long_hyphen=None):
         line = ''
         for key in ['m', 'i', 'size', 'd']:
             if key in param:
@@ -311,7 +313,7 @@ class SamplesCommonTestClass():
             "Path for test data {} is not exist!".format(Environment.env['test_data'])
         cls.output_dir = Environment.env['out_directory']
 
-    def _test(self, param, use_preffix=True, get_cmd_func=None, get_shell_result=False, long_hyphen=[]):
+    def _test(self, param, use_preffix=True, get_cmd_func=None, get_shell_result=False, long_hyphen=None):
         """
         :param param:
         :param use_preffix: use it when sample doesn't require keys (i.e. hello_classification <path_to_model> <path_to_image>
@@ -425,8 +427,8 @@ class SamplesCommonTestClass():
         """
         Clean up IRs and npy files from self.output_dir if exist
         :return: """
-        if not hasattr(self, 'save') or not self.save:
-            if os.path.exists(self.output_dir):
-                shutil.rmtree(self.output_dir)
+        is_save = getattr(self, 'save', None) 
+        if not is_save and os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
         filenames = glob.glob('out*.bmp')
         [os.remove(fn) for fn in filenames]

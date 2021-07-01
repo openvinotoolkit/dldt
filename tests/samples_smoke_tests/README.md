@@ -9,7 +9,7 @@ a. Required:
 ```sh
 - IE_APP_PATH=<path to samples only for C++ and C samples>
 - IE_APP_PYTHON_PATH=<path to python IE samples only for python samples>
-- PYTHONPATH=<path to model-optimizer-tensorflow>:<path to samples_smoke_tests>$PYTHONPATH>
+- PYTHONPATH=<path to samples_smoke_tests>$PYTHONPATH>
 - LD_LIBRARY_PATH=including all plugins
 - IE_APP_PYTHON_TOOL_PATH=<path to python IE tools for benchmark_app>
 ```	

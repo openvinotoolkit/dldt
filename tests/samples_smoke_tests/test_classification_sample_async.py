@@ -66,10 +66,10 @@ def _check_output(self, param):
     stdout = stdout.split('\n')
     is_ok = 0
     for line in range(len(stdout)):
-        if re.match("\d+ +\d+.\d+$", stdout[line].strip()) is not None:
+        if re.match("\d+ +\d+.\d+$", stdout[line].replace('[ INFO ]', '').strip()) is not None:
             if is_ok == 0:
                 is_ok = True
-            top1 = stdout[line].strip().split(' ')[0]
+            top1 = stdout[line].replace('[ INFO ]', '').strip().split(' ')[0]
             top1 = re.sub("\D", "", top1)
             if '215' not in top1:
                 is_ok = False

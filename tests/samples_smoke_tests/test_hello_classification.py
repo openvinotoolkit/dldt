@@ -61,10 +61,10 @@ class TestHello(SamplesCommonTestClass):
         stdout = stdout.split('\n')
         is_ok = 0
         for line in stdout:
-            if re.match("\d+ +\d+.\d+$", line.strip()) is not None:
+            if re.match(r"\d+ +\d+.\d+$", line.strip()) is not None:
                 is_ok = True
                 top1 = line.strip().split(' ')[0]
-                top1 = re.sub("\D", "", top1)
+                top1 = re.sub(r"\D", "", top1)
                 assert '215' in top1, "Wrong top1 class"
                 log.info('Accuracy passed')
                 break
@@ -125,7 +125,7 @@ class TestHello(SamplesCommonTestClass):
 
         ref_probs = []
         for line in ref_stdout.split(sep='\n'):
-            if re.match("\d+\s+\d+.\d+", line):
+            if re.match(r"\d+\s+\d+.\d+", line):
                 prob_class = int(line.split()[0])
                 prob = float(line.split()[1])
                 ref_probs.append((prob_class, prob))
@@ -172,7 +172,7 @@ class TestHello(SamplesCommonTestClass):
 
                 probs = []
                 for line in stdout.split(sep='\n'):
-                    if re.match("^\d+\s+\d+.\d+", line):
+                    if re.match(r"^\d+\s+\d+.\d+", line):
                         prob_class = int(line.split()[0])
                         prob = float(line.split()[1])
                         probs.append((prob_class, prob))

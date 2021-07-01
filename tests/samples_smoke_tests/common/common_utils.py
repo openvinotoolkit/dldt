@@ -27,7 +27,7 @@ def shell(cmd, env=None, cwd=None, out_format="plain"):
     :return:
     """
     if sys.platform.startswith('linux') or sys.platform == 'darwin':
-        cmd = ['/bin/bash', '-c', "unset OMP_NUM_THREADS; " + " ".join(cmd)]
+        cmd = ['/bin/bash', '-c', " ".join(cmd)]
     else:
         cmd = " ".join(cmd)
 

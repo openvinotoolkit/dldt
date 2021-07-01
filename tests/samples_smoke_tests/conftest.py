@@ -24,7 +24,7 @@ log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=s
 def pytest_addoption(parser):
     """Specify command-line options for all plugins"""
     parser.addoption("--env_conf", action="store", help="Path to environment configuration file", default='env_conf')
-    parser.addoption("--performance", action="store", help="Performance run", default=False)
+    parser.addoption("--performance", action="store_true", help="Performance run")
 
 
 @pytest.fixture(scope="session")
