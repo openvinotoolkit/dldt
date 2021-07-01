@@ -1,18 +1,6 @@
-/*
-// Copyright (c) 2021 Intel Corporation
+// Copyright (C) 2021 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
 
 #include "non_max_suppression_inst.h"
 #include "primitive_gpu_base.h"
@@ -101,7 +89,8 @@ public:
         }
 
         params.sort_result_descending = primitive->sort_result_descending;
-        params.box_encoding = primitive->center_point_box ? 1 : 0;
+        params.box_encoding = primitive->center_point_box ?
+            kernel_selector::BoxEncodingType::BOX_ENCODING_CENTER : kernel_selector::BoxEncodingType::BOX_ENCODING_CORNER;
 
         auto& kernel_selector = kernel_selector::non_max_suppression_kernel_selector::Instance();
         auto best_kernels = kernel_selector.GetBestKernels(params, optional_params);
