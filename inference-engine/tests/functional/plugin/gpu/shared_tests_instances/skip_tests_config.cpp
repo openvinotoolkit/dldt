@@ -58,6 +58,9 @@ std::vector<std::string> disabledTestPatterns() {
             R"(.*IEClassImportExportTestP.*)",
 
             // TODO: Issue: 59586, NormalizeL2 output mismatch for empty axes case
-            R"(.*NormalizeL2LayerTest.*axes=\(\).*)"
+            R"(.*NormalizeL2LayerTest.*axes=\(\).*)",
+
+            // Not run loop functional test for dynamic loop on GPU
+            R"(.*StaticShapeLoopTest.*dynamic_exit=([1-9][0-9]*).*targetDevice=GPU_*)"
     };
 }
