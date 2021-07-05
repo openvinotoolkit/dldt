@@ -7,6 +7,9 @@
 #include "mkldnn_node.h"
 #include "dnnl_debug.h"
 
+#include <string>
+#include <cstdlib>
+
 namespace MKLDNNPlugin {
 /**
  * Print node verbose execution information to cout.
@@ -15,8 +18,9 @@ namespace MKLDNNPlugin {
  * Can be rewritten in pure C++ if necessary
  */
 void print(const MKLDNNNodePtr& node, const std::string& verboseLvl) {
-    // use C stoi version to avoid dealing with exceptions
-    const int lvl = stoi(verboseLvl);
+    // use C atoi instead of std::stoi to avoid dealing with exceptions
+    const int lvl = atoi(verboseLvl.c_str());
+
     if (lvl < 1)
         return;
 
@@ -74,7 +78,6 @@ void print(const MKLDNNNodePtr& node, const std::string& verboseLvl) {
 
         return colorCode + str + reset;
     };
-
 
     auto shift = [&](int size) {
         if (written < 0 || written_total + size > CPU_VERBOSE_DAT_LEN) {
