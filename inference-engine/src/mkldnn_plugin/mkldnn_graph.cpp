@@ -347,6 +347,8 @@ void MKLDNNGraph::InitGraph() {
         graphNode->cleanup();
     }
 #endif
+    SplitNodes();
+
     ExecuteConstantNodesOnly();
 }
 
@@ -390,6 +392,16 @@ void MKLDNNGraph::InitOptimalPrimitiveDescriptors() {
     }
 }
 
+void MKLDNNGraph::SplitNodes() {
+    OV_ITT_SCOPE(FIRST_INFERENCE, itt::domains::MKLDNN_LT, "MKLDNNGraph::SplitNodes");
+    for (auto& graphNode : graphNodes) {
+        if (graphNode->isConstant())
+            constantGraphNodes.emplace_back(graphNode);
+        else
+            inconstantGraphNodes.emplace_back(graphNode);
+    }
+}
+
 void MKLDNNGraph::ExecuteConstantNodesOnly() {
     OV_ITT_SCOPE(FIRST_INFERENCE, itt::domains::MKLDNN_LT, "MKLDNNGraph::ExecuteConstantNodesOnly");
     mkldnn::stream stream(eng);
@@ -418,10 +430,7 @@ void MKLDNNGraph::ExecuteConstantNodesOnly() {
         return std::make_tuple(hasExternalInvalidEdges, hasLocalAllocatedEdges, outputs);
     };
 
-    for (auto &graphNode : graphNodes) {
-        if (!graphNode->isConstant())
-            continue;
-
+    for (auto &graphNode : constantGraphNodes) {
         if (weightsCache) {
             auto sharedOutputs = acquireSharedOutputs(graphNode);
 
@@ -806,28 +815,73 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
         IE_THROW() << "Wrong state. Topology is not ready.";
     }
 
+    if (config.collectPerfCounters) {
+        InferWithPerfCounters(request, batch);
+        return;
+    }
+
     mkldnn::stream stream(eng);
 
     ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
 
-    for (int i = 0; i < graphNodes.size(); i++) {
-        if (request != nullptr) {
+    for (int i = 0; i < constantGraphNodes.size(); i++) {
+        if (request != nullptr)
             request->ThrowIfCanceled();
-        }
-
-        PERF(graphNodes[i]);
 
         if (batch > 0)
-            graphNodes[i]->setDynamicBatchLim(batch);
+            constantGraphNodes[i]->setDynamicBatchLim(batch);
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(graphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(constantGraphNodes[i]));
+    }
 
-        if (!graphNodes[i]->isConstant()) {
-            OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, graphNodes[i]->profiling.execute);
-            graphNodes[i]->execute(stream);
-        }
+    for (int i = 0; i < inconstantGraphNodes.size(); i++) {
+        if (request != nullptr)
+            request->ThrowIfCanceled();
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(graphNodes[i]));
+        if (batch > 0)
+            inconstantGraphNodes[i]->setDynamicBatchLim(batch);
+
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(inconstantGraphNodes[i]));
+
+        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, inconstantGraphNodes[i]->profiling.execute);
+        inconstantGraphNodes[i]->execute(stream);
+
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(inconstantGraphNodes[i]));
+    }
+
+    if (infer_count != -1) infer_count++;
+}
+
+void MKLDNNGraph::InferWithPerfCounters(MKLDNNInferRequest* request, int batch) {
+    mkldnn::stream stream(eng);
+
+    ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
+
+    for (int i = 0; i < constantGraphNodes.size(); i++) {
+        if (request != nullptr)
+            request->ThrowIfCanceled();
+
+        if (batch > 0)
+            constantGraphNodes[i]->setDynamicBatchLim(batch);
+
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(constantGraphNodes[i]));
+    }
+
+    for (int i = 0; i < inconstantGraphNodes.size(); i++) {
+        if (request != nullptr)
+            request->ThrowIfCanceled();
+
+        PERF(inconstantGraphNodes[i]);
+
+        if (batch > 0)
+            inconstantGraphNodes[i]->setDynamicBatchLim(batch);
+
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(inconstantGraphNodes[i]));
+
+        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, inconstantGraphNodes[i]->profiling.execute);
+        inconstantGraphNodes[i]->execute(stream);
+
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(inconstantGraphNodes[i]));
     }
 
     if (infer_count != -1) infer_count++;

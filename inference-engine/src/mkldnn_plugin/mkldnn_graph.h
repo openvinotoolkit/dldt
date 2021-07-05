@@ -200,6 +200,9 @@ protected:
     std::vector<MKLDNNNodePtr> graphNodes;
     std::vector<MKLDNNEdgePtr> graphEdges;
 
+    std::vector<MKLDNNNodePtr> constantGraphNodes;
+    std::vector<MKLDNNNodePtr> inconstantGraphNodes;
+
     std::map<std::string, NormalizePreprocess> _normalizePreprocMap;
     std::string _name;
 
@@ -218,6 +221,7 @@ protected:
     void AllocateWithReuse();
     void CreatePrimitives();
     void ExecuteConstantNodesOnly();
+    void SplitNodes();
 
     friend class MKLDNNInferRequest;
     friend class MKLDNNGraphlessInferRequest;
@@ -225,6 +229,7 @@ protected:
 
 private:
     void EnforceBF16();
+    void InferWithPerfCounters(MKLDNNInferRequest* request, int batch);
 };
 
 }  // namespace MKLDNNPlugin
