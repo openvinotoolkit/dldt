@@ -807,16 +807,16 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
         IE_THROW() << "Wrong state. Topology is not ready.";
     }
 
-    mkldnn::stream stream(eng);
-
-    ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
-
-    auto execute = [&](const MKLDNNNodePtr& node){
+    auto execute = [](const MKLDNNNodePtr& node, const mkldnn::stream& s) {
         PERF(node);
         OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, node->profiling.execute);
 
-        node->execute(stream);
+        node->execute(s);
     };
+
+    mkldnn::stream stream(eng);
+
+    ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
 
     for (const auto& node : graphNodes) {
         if (request)
@@ -829,7 +829,7 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
 
         if (node->isConstant()) continue;
 
-        execute(node);
+        execute(node, stream);
 
         ENABLE_CPU_DEBUG_CAP(print(node, config.debugCaps.verbose));
 
