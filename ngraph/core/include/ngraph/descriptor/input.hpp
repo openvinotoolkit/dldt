@@ -105,8 +105,8 @@ namespace ngraph
             std::shared_ptr<Node> m_src_node;
             Node* m_node;   // The node we are an input for
             size_t m_index; // Index into all input tensors
-            Output* m_output;
             RTMap m_rt_info;
+            Output* m_output;
 
         private:
             bool m_is_relevant_to_shape;
