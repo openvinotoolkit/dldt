@@ -76,6 +76,8 @@
 #include <ngraph/pass/manager.hpp>
 #include <ngraph/pass/constant_folding.hpp>
 #include <transformations/common_optimizations/weights_dequantize_to_fake_quantize.hpp>
+#include <transformations/serialize.hpp>
+#include <transformations/common_optimizations/tiling.hpp>
 
 NGRAPH_RTTI_DEFINITION(ngraph::pass::CommonOptimizations, "CommonOptimizations", 0);
 
@@ -137,6 +139,17 @@ bool ngraph::pass::CommonOptimizations::run_on_function(std::shared_ptr<ngraph::
     manager.register_pass<ngraph::pass::BinarizeWeights>();
     manager.register_pass<ngraph::pass::ConvToBinaryConv>();
 
+    manager.register_pass<ngraph::pass::Serialize>("/tmp/out_before.xml", "/tmp/out_before.bin");
+    manager.register_pass<ngraph::pass::VisualizeTree>("/tmp/out_before.svg");
+
+    std::vector<std::vector<std::shared_ptr<Function>>> tiles;
+    manager.register_pass<ngraph::pass::Tiling>(tiles, false /* concat outputs */);
+
+
+
+    manager.register_pass<ngraph::pass::Serialize>("/tmp/out_after.xml", "/tmp/out_after.bin");
+    manager.register_pass<ngraph::pass::VisualizeTree>("/tmp/out_after.svg");
+
     auto decomp = manager.register_pass<ngraph::pass::GraphRewrite>();
     decomp->add_matcher<ngraph::pass::Gelu7Downgrade>();
     decomp->add_matcher<ngraph::pass::BidirectionalSequenceDecomposition>();
@@ -192,6 +205,10 @@ bool ngraph::pass::CommonOptimizations::run_on_function(std::shared_ptr<ngraph::
     manager.register_pass<ngraph::pass::StridesOptimization>();
 
     manager.run_passes(f);
+
+    Serialize("/tmp/out_tile_1.xml", "/tmp/out_tile_1.bin").run_on_function(tiles[0][0]);
+    Serialize("/tmp/out_tile_4.xml", "/tmp/out_tile_4.bin").run_on_function(tiles[1][1]);
+
 
     // Returning value is false because pass::Manager always apply Validation pass
     // if function was changed. This helps to avoid excess Validations after applying
