@@ -398,7 +398,7 @@ void MKLDNNGraph::SplitNodes() {
         if (graphNode->isConstant())
             constantGraphNodes.emplace_back(graphNode);
         else
-            inconstantGraphNodes.emplace_back(graphNode);
+            mutableGraphNodes.emplace_back(graphNode);
     }
 }
 
@@ -815,73 +815,36 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
         IE_THROW() << "Wrong state. Topology is not ready.";
     }
 
-    if (config.collectPerfCounters) {
-        InferWithPerfCounters(request, batch);
-        return;
-    }
-
     mkldnn::stream stream(eng);
 
     ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
 
+#ifdef CPU_DEBUG_CAPS
     for (int i = 0; i < constantGraphNodes.size(); i++) {
         if (request != nullptr)
             request->ThrowIfCanceled();
 
-        if (batch > 0)
-            constantGraphNodes[i]->setDynamicBatchLim(batch);
-
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(constantGraphNodes[i]));
         ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(constantGraphNodes[i]));
     }
+#endif
 
-    for (int i = 0; i < inconstantGraphNodes.size(); i++) {
+    const bool collectPerfCounters = config.collectPerfCounters;
+    for (int i = 0; i < mutableGraphNodes.size(); i++) {
         if (request != nullptr)
             request->ThrowIfCanceled();
 
-        if (batch > 0)
-            inconstantGraphNodes[i]->setDynamicBatchLim(batch);
-
-        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(inconstantGraphNodes[i]));
-
-        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, inconstantGraphNodes[i]->profiling.execute);
-        inconstantGraphNodes[i]->execute(stream);
-
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(inconstantGraphNodes[i]));
-    }
-
-    if (infer_count != -1) infer_count++;
-}
-
-void MKLDNNGraph::InferWithPerfCounters(MKLDNNInferRequest* request, int batch) {
-    mkldnn::stream stream(eng);
-
-    ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
-
-    for (int i = 0; i < constantGraphNodes.size(); i++) {
-        if (request != nullptr)
-            request->ThrowIfCanceled();
+        PERF(mutableGraphNodes[i], collectPerfCounters)
 
         if (batch > 0)
-            constantGraphNodes[i]->setDynamicBatchLim(batch);
+            mutableGraphNodes[i]->setDynamicBatchLim(batch);
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(constantGraphNodes[i]));
-    }
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(mutableGraphNodes[i]));
 
-    for (int i = 0; i < inconstantGraphNodes.size(); i++) {
-        if (request != nullptr)
-            request->ThrowIfCanceled();
+        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, mutableGraphNodes[i]->profiling.execute);
+        mutableGraphNodes[i]->execute(stream);
 
-        PERF(inconstantGraphNodes[i]);
-
-        if (batch > 0)
-            inconstantGraphNodes[i]->setDynamicBatchLim(batch);
-
-        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(inconstantGraphNodes[i]));
-
-        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, inconstantGraphNodes[i]->profiling.execute);
-        inconstantGraphNodes[i]->execute(stream);
-
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(inconstantGraphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(mutableGraphNodes[i]));
     }
 
     if (infer_count != -1) infer_count++;

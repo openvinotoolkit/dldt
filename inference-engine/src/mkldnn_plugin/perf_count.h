@@ -5,7 +5,7 @@
 #pragma once
 
 #include <chrono>
-
+#include <iostream>
 namespace MKLDNNPlugin {
 
 class PerfCount {
@@ -46,4 +46,5 @@ public:
 
 }  // namespace MKLDNNPlugin
 
-#define PERF(_counter) PerfHelper __helper##__counter (_counter->PerfCounter());
+#define GET_PERF(_counter) std::unique_ptr<PerfHelper>(new PerfHelper(_counter->PerfCounter()))
+#define PERF(_counter, _need) auto _helper = _need ? GET_PERF(_counter) : nullptr;
