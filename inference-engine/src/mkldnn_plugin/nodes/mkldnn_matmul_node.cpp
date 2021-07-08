@@ -243,10 +243,10 @@ void MKLDNNMatMulNode::process_data() {
     float *dst_ptr = reinterpret_cast<float*>(dstMemory0.GetData());
 
     const int MB = batchToProcess();
-    const auto outDims = dstMemory0.GetDims();
-    if (outDims.size() == 4) {
+    const size_t nDims = dstMemory0.GetDims().size();
+    if (nDims == 4) {
         params.MB1 = MB;
-    } else if (outDims.size() == 3) {
+    } else if (nDims == 3) {
         params.shift1 = params.shift1 * MB / params.MB2;
         params.MB2 = MB;
     }
