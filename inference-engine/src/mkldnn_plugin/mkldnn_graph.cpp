@@ -829,12 +829,14 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
     }
 #endif
 
+    std::unique_ptr<PerfHelper> perf;
     const bool collectPerfCounters = config.collectPerfCounters;
     for (int i = 0; i < mutableGraphNodes.size(); i++) {
         if (request != nullptr)
             request->ThrowIfCanceled();
 
-        PERF(mutableGraphNodes[i], collectPerfCounters)
+        if (collectPerfCounters)
+            perf = PERF(mutableGraphNodes[i]);
 
         if (batch > 0)
             mutableGraphNodes[i]->setDynamicBatchLim(batch);

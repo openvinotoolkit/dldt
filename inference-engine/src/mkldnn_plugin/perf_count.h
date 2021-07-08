@@ -28,7 +28,7 @@ private:
     void finish_itr() {
         __finish = std::chrono::high_resolution_clock::now();
 
-        duration += std::chrono::duration_cast<std::chrono::microseconds>(__finish - __start).count();
+        duration += std::chrono::duration_cast<std::chrono::nanoseconds>(__finish - __start).count();
         num++;
     }
 
@@ -46,5 +46,4 @@ public:
 
 }  // namespace MKLDNNPlugin
 
-#define GET_PERF(_counter) std::unique_ptr<PerfHelper>(new PerfHelper(_counter->PerfCounter()))
-#define PERF(_counter, _need) auto _helper = _need ? GET_PERF(_counter) : nullptr;
+#define PERF(_counter) std::unique_ptr<PerfHelper>(new PerfHelper(_counter->PerfCounter()))
