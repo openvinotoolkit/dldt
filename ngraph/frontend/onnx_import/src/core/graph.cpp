@@ -114,6 +114,7 @@ namespace ngraph
                     }
 
                     initializers.emplace(initializer_tensor.name(), tensor);
+                    ng_constant->get_output_tensor(0).set_names({initializer_tensor.name()});
                     add_provenance_tag_to_initializer(tensor, ng_constant);
                     m_cache->emplace_node(initializer_tensor.name(), std::move(ng_constant));
                 }
