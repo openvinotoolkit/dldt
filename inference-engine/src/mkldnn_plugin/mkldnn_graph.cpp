@@ -347,7 +347,7 @@ void MKLDNNGraph::InitGraph() {
         graphNode->cleanup();
     }
 #endif
-    SplitNodes();
+    ExtractConstantNodes();
 
     ExecuteConstantNodesOnly();
 }
@@ -392,8 +392,8 @@ void MKLDNNGraph::InitOptimalPrimitiveDescriptors() {
     }
 }
 
-void MKLDNNGraph::SplitNodes() {
-    OV_ITT_SCOPE(FIRST_INFERENCE, itt::domains::MKLDNN_LT, "MKLDNNGraph::SplitNodes");
+void MKLDNNGraph::ExtractConstantNodes() {
+    OV_ITT_SCOPE(FIRST_INFERENCE, itt::domains::MKLDNN_LT, "MKLDNNGraph::ExtractConstantNodes");
     for (auto& graphNode : graphNodes) {
         if (graphNode->isConstant())
             constantGraphNodes.emplace_back(graphNode);
@@ -820,36 +820,42 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
     ENABLE_CPU_DEBUG_CAP(NodeDumper nd(config.debugCaps, infer_count));
 
 #ifdef CPU_DEBUG_CAPS
-    for (int i = 0; i < constantGraphNodes.size(); i++) {
+    for (const auto& node : constantGraphNodes) {
         if (request != nullptr)
             request->ThrowIfCanceled();
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(constantGraphNodes[i]));
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(constantGraphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(node));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(node));
     }
 #endif
 
     std::unique_ptr<PerfHelper> perf;
-    const bool collectPerfCounters = config.collectPerfCounters;
-    for (int i = 0; i < mutableGraphNodes.size(); i++) {
+    for (const auto& node : mutableGraphNodes) {
         if (request != nullptr)
             request->ThrowIfCanceled();
 
-        if (collectPerfCounters)
-            perf = PERF(mutableGraphNodes[i]);
-
         if (batch > 0)
-            mutableGraphNodes[i]->setDynamicBatchLim(batch);
+            node->setDynamicBatchLim(batch);
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(mutableGraphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpInputBlobs(node));
 
-        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, mutableGraphNodes[i]->profiling.execute);
-        mutableGraphNodes[i]->execute(stream);
+        ExecuteNode(node, stream);
 
-        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(mutableGraphNodes[i]));
+        ENABLE_CPU_DEBUG_CAP(nd.dumpOutputBlobs(node));
     }
 
     if (infer_count != -1) infer_count++;
+}
+
+inline void MKLDNNGraph::ExecuteNode(const MKLDNNNodePtr& node, const mkldnn::stream& stream) const {
+    if (config.collectPerfCounters) {
+        PERF(node);
+        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, node->profiling.execute);
+        node->execute(stream);
+    } else {
+        OV_ITT_SCOPED_TASK(itt::domains::MKLDNNPlugin, node->profiling.execute);
+        node->execute(stream);
+    }
 }
 
 void MKLDNNGraph::VisitNode(MKLDNNNodePtr node, std::vector<MKLDNNNodePtr>& sortedNodes) {

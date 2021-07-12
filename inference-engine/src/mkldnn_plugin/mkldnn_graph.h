@@ -200,9 +200,6 @@ protected:
     std::vector<MKLDNNNodePtr> graphNodes;
     std::vector<MKLDNNEdgePtr> graphEdges;
 
-    std::vector<MKLDNNNodePtr> constantGraphNodes;
-    std::vector<MKLDNNNodePtr> mutableGraphNodes;
-
     std::map<std::string, NormalizePreprocess> _normalizePreprocMap;
     std::string _name;
 
@@ -220,15 +217,21 @@ protected:
     void Allocate();
     void AllocateWithReuse();
     void CreatePrimitives();
+    void ExtractConstantNodes();
     void ExecuteConstantNodesOnly();
-    void SplitNodes();
 
     friend class MKLDNNInferRequest;
     friend class MKLDNNGraphlessInferRequest;
     friend InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph);
 
 private:
+    // initialised in ExtractConstantNodes method to avoid regular checking
+    // for constant node in ExecuteConstantNodesOnly and Infer methods
+    std::vector<MKLDNNNodePtr> constantGraphNodes;
+    std::vector<MKLDNNNodePtr> mutableGraphNodes;
+
     void EnforceBF16();
+    inline void ExecuteNode(const MKLDNNNodePtr& node, const mkldnn::stream& stream) const;
 };
 
 }  // namespace MKLDNNPlugin
