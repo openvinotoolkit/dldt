@@ -672,3 +672,6 @@ if (NGRAPH_PDPD_FRONTEND_ENABLE AND paddlepaddle_FOUND)
     add_dependencies(unit-test pdpd_test_models)
     add_dependencies(unit-test paddlepaddle_ngraph_frontend)
 endif()
+
+target_link_libraries(unit-test PRIVATE cnpy)
+
