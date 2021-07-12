@@ -48,8 +48,8 @@ private:
         char transa = 'N';
         char transb = 'N';
 
-        int MB1 = 0;
-        int MB2 = 0;
+        int MB1 = 1;
+        int MB2 = 1;
 
         int M = 0;
         int N = 0;

@@ -181,7 +181,6 @@ void MKLDNNMatMulNode::createPrimitive() {
         IE_THROW()  << errorPrefix << " did not set preferable primitive descriptor";
 
     auto inDims0 = src0MemPtr->GetDims();
-    auto inDims1 = src1MemPtr->GetDims();
     auto outDims = dstMemPtr->GetDims();
 
     params.MB1 = 1;
