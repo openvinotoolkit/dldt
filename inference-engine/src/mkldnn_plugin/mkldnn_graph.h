@@ -225,8 +225,8 @@ protected:
     friend InferenceEngine::CNNNetwork dump_graph_as_ie_ngraph_net(const MKLDNNGraph &graph);
 
 private:
-    // initialised in ExtractConstantNodes method to avoid regular checking
-    // for constant node in ExecuteConstantNodesOnly and Infer methods
+    // these copies of graphNodes are to avoid regular checking for
+    // constant node in ExecuteConstantNodesOnly and Infer methods
     std::vector<MKLDNNNodePtr> constantGraphNodes;
     std::vector<MKLDNNNodePtr> mutableGraphNodes;
 

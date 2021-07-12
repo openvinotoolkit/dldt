@@ -829,7 +829,6 @@ void MKLDNNGraph::Infer(MKLDNNInferRequest* request, int batch) {
     }
 #endif
 
-    std::unique_ptr<PerfHelper> perf;
     for (const auto& node : mutableGraphNodes) {
         if (request != nullptr)
             request->ThrowIfCanceled();
