@@ -93,6 +93,7 @@ protected:
             isa == mkldnn::impl::cpu::x64::avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     const uint32_t vlenXmm = mkldnn::impl::cpu::x64::cpu_isa_traits<mkldnn::impl::cpu::x64::sse41>::vlen;
     const uint32_t vlenYmm = mkldnn::impl::cpu::x64::cpu_isa_traits<mkldnn::impl::cpu::x64::avx2>::vlen;
+    uint32_t dataTypeShift = 0;
 
     Xbyak::Reg64 regSrc = r8;
     Xbyak::Reg64 regDst = r9;
@@ -165,23 +166,15 @@ protected:
 
     Vmm vmmAux11 = Vmm(17);
 
-    void fillIndicies(Xbyak::Xmm& dst, Xbyak::Xmm& mask);
-    void fillIndicies(Xbyak::Ymm& dst, Xbyak::Ymm& mask);
-    void fillIndicies(Xbyak::Zmm& dst, Xbyak::Opmask& mask);
-    void fillIndiciesLongIdx(Xbyak::Ymm& dst, Xbyak::Ymm& mask);
-    void fillIndiciesShortIdx(Xbyak::Ymm& dst, Xbyak::Ymm& mask);
-    void fillIndiciesBlk(Xbyak::Ymm& dst, Xbyak::Ymm& mask);
-    void vpGatherDD(const Xbyak::Ymm& dst);
-    void vpGatherDD(const Xbyak::Zmm& dst);
+    void calcSrcShiftLong(Vmm& dst, Vmm& mask, Vmm& idxMask);
+    void calcSrcShiftShort(Vmm& dst, Vmm& mask, Vmm& idxMask);
+    void normalizeRawIndices(Vmm& rawIndices, Vmm& dstMask, Vmm& aux);
     void gatherLongIdx32();
     void gatherShortIdx32();
     void gatherLongIdx16();
     void gatherShortIdx16();
     void gatherLongIdx8();
     void gatherShortIdx8();
-    void vpGatherDDBlk(const Xbyak::Ymm& dst);
-    void gatherAndGroup(const Xbyak::Ymm& dst, const Xbyak::Ymm& shufMask);
-    void gatherAndGroup(const Xbyak::Zmm& dst, const Xbyak::Zmm& shufMask);
     void tail32();
     void tail16();
     void tail8();
