@@ -165,7 +165,6 @@ QueryNetworkResult Engine::QueryNetwork(
 
     const auto supportedLayers = getSupportedLayers(
             network,
-            ncDevicePlatform_t::NC_ANY_PLATFORM,
             parsedConfigCopy,
             log,
             GetCore());

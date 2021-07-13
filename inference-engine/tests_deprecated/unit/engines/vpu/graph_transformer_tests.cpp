@@ -310,7 +310,7 @@ void GraphTransformerTest::InitCompileEnv() {
             ? InferenceEngine::PluginConfigParams::YES : InferenceEngine::PluginConfigParams::NO);
     }
 
-    CompileEnv::init(platform, config, _log);
+    CompileEnv::init(config, _log);
     compileEnvInitialized = true;
 }
 
