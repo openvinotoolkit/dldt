@@ -187,8 +187,10 @@ void MKLDNNMatMulNode::createPrimitive() {
     params.src1_mem_ptr = src1MemPtr;
     params.dst_mem_ptr = dstMemPtr;
 
+    params.ndims = outDims.size();
+
     params.MB1 = 1;
-    params.MB2 = outDims.size() > 3 ? outDims[outDims.size() - 3] : 1;
+    params.MB2 = outDims.size() > 3 ? outDims[params.ndims - 3] : 1;
 
     params.M = outDims[yAxis];
     params.N = outDims[xAxis];
@@ -203,8 +205,6 @@ void MKLDNNMatMulNode::createPrimitive() {
 
     params.shift1 = params.M * params.N * params.MB2;
     params.shift2 = params.M * params.N;
-
-    params.ndims = dstMemPtr->GetDims().size();
 }
 
 inline void process_gemm(char transa, char transb, int M, int N, int K, float alpha, const float *A, int lda,
