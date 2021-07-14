@@ -183,9 +183,9 @@ void MKLDNNMatMulNode::createPrimitive() {
     auto inDims0 = src0MemPtr->GetDims();
     auto outDims = dstMemPtr->GetDims();
 
-    params.src0_exposed_ptr = reinterpret_cast<void*>(src0MemPtr->GetPtr());
-    params.src1_exposed_ptr = reinterpret_cast<void*>(src1MemPtr->GetPtr());
-    params.dst_ptr = reinterpret_cast<float*>(dstMemPtr->GetPtr());
+    params.src0_exposed_ptr = src0MemPtr;
+    params.src1_exposed_ptr = src1MemPtr;
+    params.dst_ptr = dstMemPtr;
 
     params.MB1 = 1;
     params.MB2 = outDims.size() > 3 ? outDims[outDims.size() - 3] : 1;
@@ -239,9 +239,9 @@ inline void process_gemm(char transa, char transb, int M, int N, int K, float al
 
 template<typename T0, typename T1>
 void MKLDNNMatMulNode::process_data() {
-    const T0 *src0_ptr = reinterpret_cast<const T0*>(params.src0_exposed_ptr);
-    const T1 *src1_ptr = reinterpret_cast<const T1*>(params.src1_exposed_ptr);
-    float *dst_ptr = params.dst_ptr;
+    const T0 *src0_ptr = reinterpret_cast<const T0*>(params.src0_exposed_ptr->GetPtr());
+    const T1 *src1_ptr = reinterpret_cast<const T1*>(params.src1_exposed_ptr->GetPtr());
+    float* dst_ptr = reinterpret_cast<float*>(params.dst_ptr->GetPtr());
 
     const int MB = batchToProcess();
     if (params.ndims == 4) {

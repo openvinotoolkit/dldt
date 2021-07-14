@@ -45,9 +45,9 @@ private:
     std::string errorPrefix;
 
     struct {
-        void* src0_exposed_ptr = nullptr;
-        void* src1_exposed_ptr = nullptr;
-        float* dst_ptr = nullptr;
+        MKLDNNMemoryPtr src0_exposed_ptr = nullptr;
+        MKLDNNMemoryPtr src1_exposed_ptr = nullptr;
+        MKLDNNMemoryPtr dst_ptr = nullptr;
 
         char transa = 'N';
         char transb = 'N';
