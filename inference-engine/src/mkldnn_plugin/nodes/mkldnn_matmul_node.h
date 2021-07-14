@@ -45,6 +45,10 @@ private:
     std::string errorPrefix;
 
     struct {
+        void* src0_exposed_ptr = nullptr;
+        void* src1_exposed_ptr = nullptr;
+        float* dst_ptr = nullptr;
+
         char transa = 'N';
         char transb = 'N';
 
@@ -61,6 +65,8 @@ private:
 
         int shift1 = 0;
         int shift2 = 0;
+
+        size_t ndims = 0;
     } params;
 };
 

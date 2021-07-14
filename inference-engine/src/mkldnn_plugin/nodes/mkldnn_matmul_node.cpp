@@ -183,6 +183,10 @@ void MKLDNNMatMulNode::createPrimitive() {
     auto inDims0 = src0MemPtr->GetDims();
     auto outDims = dstMemPtr->GetDims();
 
+    params.src0_exposed_ptr = reinterpret_cast<void*>(src0MemPtr->GetPtr());
+    params.src1_exposed_ptr = reinterpret_cast<void*>(src1MemPtr->GetPtr());
+    params.dst_ptr = reinterpret_cast<float*>(dstMemPtr->GetPtr());
+
     params.MB1 = 1;
     params.MB2 = outDims.size() > 3 ? outDims[outDims.size() - 3] : 1;
 
@@ -199,6 +203,8 @@ void MKLDNNMatMulNode::createPrimitive() {
 
     params.shift1 = params.M * params.N * params.MB2;
     params.shift2 = params.M * params.N;
+
+    params.ndims = dstMemPtr->GetDims().size();
 }
 
 inline void process_gemm(char transa, char transb, int M, int N, int K, float alpha, const float *A, int lda,
@@ -233,19 +239,14 @@ inline void process_gemm(char transa, char transb, int M, int N, int K, float al
 
 template<typename T0, typename T1>
 void MKLDNNMatMulNode::process_data() {
-    auto& srcMemory0 = getParentEdgeAt(0)->getMemory();
-    auto& srcMemory1 = getParentEdgeAt(1)->getMemory();
-    auto& dstMemory0 = getChildEdgeAt(0)->getMemory();
-
-    const T0 *src0_ptr = reinterpret_cast<const T0*>(srcMemory0.GetPtr());
-    const T1 *src1_ptr = reinterpret_cast<const T1*>(srcMemory1.GetData());
-    float *dst_ptr = reinterpret_cast<float*>(dstMemory0.GetData());
+    const T0 *src0_ptr = reinterpret_cast<const T0*>(params.src0_exposed_ptr);
+    const T1 *src1_ptr = reinterpret_cast<const T1*>(params.src1_exposed_ptr);
+    float *dst_ptr = params.dst_ptr;
 
     const int MB = batchToProcess();
-    const size_t nDims = dstMemory0.GetDims().size();
-    if (nDims == 4) {
+    if (params.ndims == 4) {
         params.MB1 = MB;
-    } else if (nDims == 3) {
+    } else if (params.ndims == 3) {
         params.shift1 = params.shift1 * MB / params.MB2;
         params.MB2 = MB;
     }
