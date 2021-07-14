@@ -113,6 +113,7 @@ protected:
     Xbyak::Opmask kMaskOnes = Xbyak::Opmask(1);
     Xbyak::Opmask kMaskAux1 = Xbyak::Opmask(2);
     Xbyak::Opmask kMaskAux2 = Xbyak::Opmask(3);
+    Xbyak::Opmask kGatherMask = Xbyak::Opmask(4);
 
     Xbyak::Xmm xmmAux0 = Xbyak::Xmm(0);
     Xbyak::Xmm xmmAux1 = Xbyak::Xmm(1);
@@ -133,6 +134,9 @@ protected:
     Xbyak::Ymm ymmAux2 = Xbyak::Ymm(7);
     Xbyak::Ymm ymmAux10 = Xbyak::Ymm(16);
 
+    Xbyak::Zmm zmmAux0 = Xbyak::Zmm(0);
+    Xbyak::Zmm zmmAux1 = Xbyak::Zmm(1);
+    Xbyak::Zmm zmmSrcShifts = Xbyak::Zmm(5);
     Xbyak::Zmm zmmDst = Xbyak::Zmm(15);
 
     Vmm vmmAux0 = Vmm(0);
@@ -166,9 +170,11 @@ protected:
 
     Vmm vmmAux11 = Vmm(17);
 
-    void calcSrcShiftLong(Vmm& dst, Vmm& mask, Vmm& idxMask);
+    void calcSrcShiftLong(Xbyak::Ymm& dstIndices, Xbyak::Ymm& dstMask, Xbyak::Ymm& idxMask); // remove idxMask ?
+    void calcSrcShiftLong(Xbyak::Zmm& dstIndices, Xbyak::Opmask& dstMask, Xbyak::Opmask& idxMask);
     void calcSrcShiftShort(Vmm& dst, Vmm& mask, Vmm& idxMask);
-    void normalizeRawIndices(Vmm& rawIndices, Vmm& dstMask, Vmm& aux);
+    void normalizeRawIndices(Xbyak::Ymm& rawIndices, Xbyak::Ymm& dstMask, Xbyak::Ymm& aux);
+    void normalizeRawIndices(Xbyak::Zmm& rawIndices, Xbyak::Opmask& dstMask, Xbyak::Opmask& auxMask);
     void gatherLongIdx32();
     void gatherShortIdx32();
     void gatherLongIdx16();
