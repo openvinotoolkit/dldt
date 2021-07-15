@@ -405,12 +405,8 @@ struct non_max_suppression_cpu : typed_primitive_impl<non_max_suppression> {
 namespace gpu {
 namespace detail {
 
-attach_non_max_suppression_gpu::attach_non_max_suppression_gpu() {
-    implementation_map<non_max_suppression>::add({
-        {std::make_tuple(engine_types::ocl, data_types::i32, format::bfyx), non_max_suppression_cpu::create},
-        {std::make_tuple(engine_types::ocl, data_types::f16, format::bfyx), non_max_suppression_cpu::create},
-        {std::make_tuple(engine_types::ocl, data_types::f32, format::bfyx), non_max_suppression_cpu::create}
-    });
+primitive_impl* create_nms_cpu(const non_max_suppression_node& node) {
+    return non_max_suppression_cpu::create(node);
 }
 
 }  // namespace detail
