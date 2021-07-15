@@ -172,7 +172,8 @@ protected:
 
     void calcSrcShiftLong(Xbyak::Ymm& dstIndices, Xbyak::Ymm& dstMask, Xbyak::Ymm& idxMask); // remove idxMask ?
     void calcSrcShiftLong(Xbyak::Zmm& dstIndices, Xbyak::Opmask& dstMask, Xbyak::Opmask& idxMask);
-    void calcSrcShiftShort(Vmm& dst, Vmm& mask, Vmm& idxMask);
+    void calcSrcShiftShort(Xbyak::Ymm& dst, Xbyak::Ymm& dstMask);
+    void calcSrcShiftShort(Xbyak::Zmm& dst, Xbyak::Opmask& dstMask);
     void normalizeRawIndices(Xbyak::Ymm& rawIndices, Xbyak::Ymm& dstMask, Xbyak::Ymm& aux);
     void normalizeRawIndices(Xbyak::Zmm& rawIndices, Xbyak::Opmask& dstMask, Xbyak::Opmask& auxMask);
     void gatherLongIdx32();
