@@ -312,7 +312,6 @@ static std::shared_ptr<ngraph::Node> GeneratePadding(std::shared_ptr<ngraph::ops
     } else {
         return original_row;
     }
-
 }
 
 template<typename T>
@@ -463,8 +462,9 @@ static void TransformInput(const GraphData& graph_data, const ConvData& conv_dat
     split_input_plane = flattened_dilated_transposed_input;
 }
 
-static std::shared_ptr<ngraph::Node> GenerateDeomposedConv(const GraphData& graph_data, ConvData& conv_data, const OutData& out_data, const MaxPoolData& pool_data,
-    ngraph::Output<ngraph::Node>& reduced_input_plane, const std::vector<std::shared_ptr<ngraph::opset7::Constant>>& h_1_filters, const size_t conv_index) {
+static std::shared_ptr<ngraph::Node> GenerateDeomposedConv(const GraphData& graph_data, ConvData& conv_data,
+    const OutData& out_data, const MaxPoolData& pool_data, ngraph::Output<ngraph::Node>& reduced_input_plane,
+    const std::vector<std::shared_ptr<ngraph::opset7::Constant>>& h_1_filters, const size_t conv_index) {
     ngraph::OutputVector result_chunks;
     std::shared_ptr<ngraph::Node> last_op;
     bool horizontal_permute = (conv_data.filter_dilation_width > 1);
@@ -692,7 +692,7 @@ static bool Convert(std::shared_ptr<ngraph::Node> leading_transpose,
     return true;
 }
 
-std::function<bool(ngraph::Output<ngraph::Node>)> consumers_and_rank(const size_t expected_count, const ngraph::Dimension& expected_rank) {
+static std::function<bool(ngraph::Output<ngraph::Node>)> consumers_and_rank(const size_t expected_count, const ngraph::Dimension& expected_rank) {
     return [=](ngraph::Output<ngraph::Node> output) -> bool {
         return ngraph::pattern::consumers_count(expected_count) && ngraph::pattern::rank_equals(expected_rank);
     };

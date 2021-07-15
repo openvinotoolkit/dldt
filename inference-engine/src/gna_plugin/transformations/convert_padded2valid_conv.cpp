@@ -246,7 +246,7 @@ static bool Convert(std::shared_ptr<ngraph::Node> leading_transpose,
     return true;
 }
 
-std::function<bool(ngraph::Output<ngraph::Node>)> consumers_and_rank(const size_t expected_count, const ngraph::Dimension& expected_rank) {
+static std::function<bool(ngraph::Output<ngraph::Node>)> consumers_and_rank(const size_t expected_count, const ngraph::Dimension& expected_rank) {
     return [=](ngraph::Output<ngraph::Node> output) -> bool {
         return ngraph::pattern::consumers_count(expected_count) && ngraph::pattern::rank_equals(expected_rank);
     };
