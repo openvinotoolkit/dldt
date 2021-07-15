@@ -56,6 +56,7 @@ std::shared_ptr<Node> makeConvolutionRelaxed(const ngraph::Output<Node> &in,
             *as_type_ptr<opset1::Convolution>(ngraph::builder::makeConvolution(
                     paramOutsFP32.front(), ngraph::element::f32, filterSize, strides, padsBegin, padsEnd, dilations, autoPad, numOutChannels)),
             element::f32);
+    //todo: u8?
 
     bool randomFilterWeights = filterWeights.empty();
     auto shape = in.get_shape();

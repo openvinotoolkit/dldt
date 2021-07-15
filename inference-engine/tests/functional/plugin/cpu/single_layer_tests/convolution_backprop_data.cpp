@@ -428,7 +428,7 @@ const std::vector<CPUSpecificParams> CPUParams_2D_I8 = {
         conv_avx512_2D_nspc
 };
 
-INSTANTIATE_TEST_CASE_P(smoke_Deconv_2D_I8, DeconvolutionLayerCPUTest,
+INSTANTIATE_TEST_SUITE_P(smoke_Deconv_2D_I8, DeconvolutionLayerCPUTest,
                         ::testing::Combine(
                                 ::testing::Combine(
                                         deconvParams_2D_I8,

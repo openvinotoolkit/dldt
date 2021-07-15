@@ -123,15 +123,16 @@ protected:
         auto convolutionNode = builder::makeConvolutionRelaxed(paramOuts.front(), weiPrc, kernel, stride, padBegin,
             padEnd, dilation, padType, convOutChannels);
 
+        // todo: outPrc?
         function = makeNgraphFunction(element::f32, inputParams, convolutionNode, "Convolution");
 
         if (inPrc == Precision::U8 || inPrc == Precision::I8) {
             additionalPasses.push_back(std::make_shared<pass::ConvertPrecision<element::i8, element::f32>>());
             additionalPasses.push_back(std::make_shared<pass::ConvertPrecision<element::u8, element::f32>>());
         }
-//        if (outPrc != Precision::FP32 && outPrc != Precision::BF16) {
-//            additionalPasses.push_back(std::make_shared<ConvertPrecision<opset1::ConvolutionBackpropData>>());
-//        }
+        if (outPrc != Precision::FP32 && outPrc != Precision::BF16) {
+            additionalPasses.push_back(std::make_shared<ConvertPrecision<opset1::Convolution>>());
+        }
     }
 };
 
@@ -160,20 +161,20 @@ namespace {
 
 /* COMMON PARAMS */
 const std::vector<fusingSpecificParams> fusingParamsSet{
-        emptyFusingSpec,
-        // eltwise
-        fusingRelu,
-        fusingPRelu1D,
+//        emptyFusingSpec,
+//        // eltwise
+//        fusingRelu,
+//        fusingPRelu1D,
         // depthwise
         fusingReluScaleShift,
         // fake quantize
-        fusingFakeQuantizePerTensorRelu,
-        fusingFakeQuantizePerChannelRelu,
-        // sum
-        fusingSumEluFQ,
-        fusingSum,
-        // bias
-        fusingAddPerChannel
+//        fusingFakeQuantizePerTensorRelu,
+//        fusingFakeQuantizePerChannelRelu,
+//        // sum
+//        fusingSumEluFQ,
+//        fusingSum,
+//        // bias
+//        fusingAddPerChannel
 };
 
 const std::vector<fusingSpecificParams> fusingParamsSetBF16{
@@ -189,27 +190,23 @@ const std::vector<fusingSpecificParams> fusingParamsSetBF16{
 };
 
 const std::vector<fusingSpecificParams> fusingParamsSetI8{
-//    fusingReluScaleShift
         emptyFusingSpec,
 //        // activations
-//        fusingRelu,
-//        fusingElu,
-//        fusingSigmoid,
-//        fusingClamp,
-//        fusingPReluPerChannel,
-//        // todo: [antonvor] not supported yet
-////        fusingSwish,
-//        fusingHSwish,
-//        fusingMish,
+        fusingRelu,
+        fusingElu,
+        fusingSigmoid,
+        fusingClamp,
+        fusingPReluPerChannel,
+        fusingSwish,
+        fusingHSwish,
+        fusingMish,
 //        // other patterns
-//        // todo: [antonvor] not supported yet
-////        fusingReluScaleShift,
-//        fusingFakeQuantizePerTensorRelu,
-//        fusingFakeQuantizePerChannelRelu,
-        // todo: [antonvor] not supported yet
-//        fusingSumEluFQ,
-//        fusingSum,
-//        fusingAddPerChannel
+        fusingReluScaleShift,
+        fusingFakeQuantizePerTensorRelu,
+        fusingFakeQuantizePerChannelRelu,
+        fusingSumEluFQ,
+        fusingSum,
+        fusingAddPerChannel
 };
 
 const std::map<std::string, std::string> cpuEmptyPluginConfig;
@@ -222,11 +219,11 @@ const SizeVector numOutChannels_Gemm = { 6 };
 const SizeVector numOutChannels = { 64, 63 };
 
 /* ============= Convolution params (2D) ============= */
-const std::vector<SizeVector> kernels2d = { {2, 2}/*, {1, 1}*/ };
+const std::vector<SizeVector> kernels2d = { /*{3, 3},*/ {1, 1} };
 const std::vector<SizeVector> strides2d = { {1, 1}/*, {2, 2}*/ };
 const std::vector<std::vector<ptrdiff_t>> padBegins2d = { {0, 0}/*, {1, 1}*/ };
 const std::vector<std::vector<ptrdiff_t>> padEnds2d = { {0, 0} };
-const std::vector<SizeVector> dilations2d = { {1, 1}, {2, 2} };
+const std::vector<SizeVector> dilations2d = { {1, 1}/*, {2, 2}*/ };
 const std::vector<SizeVector> inputShapes2d = { {1, 64, 7, 7}, {1, 67, 7, 7} };
 const std::vector<SizeVector> inputShapesPlain2Blocked2d = { {1, 1, 7, 7}, {1, 2, 7, 7},  {1, 3, 7, 7} };
 
@@ -289,7 +286,12 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_GEMM_BF16, ConvolutionLayerCPUTest,
         ::testing::Values(cpuBF16PluginConfig)),
     ConvolutionLayerCPUTest::getTestCaseName);
 
-//INSTANTIATE_TEST_CASE_P(smoke_Conv_2D_GEMM_I8, ConvolutionLayerCPUTest,
+const std::vector<CPUSpecificParams> CPUParams_2D_I8 = {
+        conv_avx512_2D_nspc
+};
+
+// todo:
+//INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_GEMM_I8, ConvolutionLayerCPUTest,
 //    ::testing::Combine(
 //        ::testing::Combine(
 //            convParams_ExplicitPadding_GEMM_2D,
@@ -305,25 +307,40 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_GEMM_BF16, ConvolutionLayerCPUTest,
 //        ::testing::Values(cpuEmptyPluginConfig)),
 //    ConvolutionLayerCPUTest::getTestCaseName);
 
-const std::vector<CPUSpecificParams> CPUParams_2D_I8 = {
-        conv_avx512_2D_nspc
-};
-
-INSTANTIATE_TEST_CASE_P(smoke_Conv_2D_I8, ConvolutionLayerCPUTest,
+// todo:
+INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_I8, ConvolutionLayerCPUTest,
                         ::testing::Combine(
                                 ::testing::Combine(
                                         convParams_ExplicitPadding_GEMM_2D,
                                         ::testing::Values(Precision::FP32),
-                                        ::testing::Values(Precision::U8, Precision::I8),
-                                        ::testing::Values(Precision::FP32),
+                                        ::testing::Values(Precision::U8 /*, Precision::I8*/), // i8 primitives are disabled in oneDNN fork
+                                        ::testing::Values(Precision::FP32/*, Precision::U8, Precision::I8*/), // u8/i8 - saturation issue
                                         ::testing::Values(Layout::ANY),
                                         ::testing::Values(Layout::ANY),
-                                        ::testing::Values(std::vector<size_t >({ 1, 2, 4, 4 })),
+                                        ::testing::Values(std::vector<size_t >({ 2, 12, 7, 7 })),
                                         ::testing::Values(CommonTestUtils::DEVICE_CPU)),
                                 ::testing::ValuesIn(filterCPUInfoForDevice(CPUParams_2D_I8)),
-                                ::testing::ValuesIn(fusingParamsSetI8),
+                                ::testing::ValuesIn(fusingParamsSet),
                                 ::testing::Values(cpuEmptyPluginConfig)),
                         ConvolutionLayerCPUTest::getTestCaseName);
+
+
+// test:
+//INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_I8_TEST, ConvolutionLayerCPUTest,
+//                         ::testing::Combine(
+//                                 ::testing::Combine(
+//                                         convParams_ExplicitPadding_GEMM_2D,
+//                                         ::testing::Values(Precision::FP32),
+//                                         ::testing::Values(Precision::U8 /*, Precision::I8*/), // i8 primitives are disabled in oneDNN fork
+//                                         ::testing::Values(Precision::U8, Precision::I8), // u8/i8 - saturation issue
+//                                         ::testing::Values(Layout::ANY),
+//                                         ::testing::Values(Layout::ANY),
+//                                         ::testing::Values(std::vector<size_t >({ 1, 1, 4, 4 })),
+//                                         ::testing::Values(CommonTestUtils::DEVICE_CPU)),
+//                                 ::testing::ValuesIn(filterCPUInfoForDevice(CPUParams_2D_I8)),
+//                                 ::testing::ValuesIn(fusingParamsSet),
+//                                 ::testing::Values(cpuEmptyPluginConfig)),
+//                         ConvolutionLayerCPUTest::getTestCaseName);
 
 /* ============= Convolution (GEMM 3D) ============= */
 const auto convParams_ExplicitPadding_GEMM_3D = ::testing::Combine(
@@ -621,6 +638,12 @@ const std::vector<CPUSpecificParams> CPUParams_1x1_2D = {
     conv_avx512_2D_1x1_nspc
 };
 
+const std::vector<CPUSpecificParams> CPUParams_1x1_2D_I8 = {
+        conv_sse42_2D_1x1_nspc,
+        conv_avx2_2D_1x1_nspc,
+        conv_avx512_2D_1x1_nspc
+};
+
 INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_1x1_FP32, ConvolutionLayerCPUTest,
     ::testing::Combine(
         ::testing::Combine(
@@ -653,21 +676,21 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_1x1_BF16, ConvolutionLayerCPUTest,
         ::testing::Values(cpuBF16PluginConfig)),
     ConvolutionLayerCPUTest::getTestCaseName);
 
-//INSTANTIATE_TEST_CASE_P(smoke_Conv_2D_1x1_I8, ConvolutionLayerCPUTest,
-//    ::testing::Combine(
-//        ::testing::Combine(
-//            convParams_ExplicitPadding_1x1_2D,
-//            ::testing::Values(Precision::FP32),
-//            ::testing::Values(Precision::I8),
-//            ::testing::Values(Precision::UNSPECIFIED),
-//            ::testing::Values(Layout::ANY),
-//            ::testing::Values(Layout::ANY),
-//            ::testing::ValuesIn(inputShapes2d),
-//            ::testing::Values(CommonTestUtils::DEVICE_CPU)),
-//        ::testing::ValuesIn(filterCPUInfoForDevice(CPUParams_1x1_2D)),
-//        ::testing::Values(fusingSum),
-//        ::testing::Values(cpuEmptyPluginConfig)),
-//    ConvolutionLayerCPUTest::getTestCaseName);
+INSTANTIATE_TEST_CASE_P(smoke_Conv_2D_1x1_I8, ConvolutionLayerCPUTest,
+    ::testing::Combine(
+        ::testing::Combine(
+            convParams_ExplicitPadding_1x1_2D,
+            ::testing::Values(Precision::FP32),
+            ::testing::Values(Precision::U8),
+            ::testing::Values(Precision::UNSPECIFIED),
+            ::testing::Values(Layout::ANY),
+            ::testing::Values(Layout::ANY),
+            ::testing::ValuesIn(inputShapes2d),
+            ::testing::Values(CommonTestUtils::DEVICE_CPU)),
+        ::testing::ValuesIn(filterCPUInfoForDevice(CPUParams_1x1_2D_I8)),
+        ::testing::ValuesIn(fusingParamsSet),
+        ::testing::Values(cpuEmptyPluginConfig)),
+    ConvolutionLayerCPUTest::getTestCaseName);
 
 /* ============= Convolution (1D) ============= */
 /* ============= Convolution params (1D) ============= */

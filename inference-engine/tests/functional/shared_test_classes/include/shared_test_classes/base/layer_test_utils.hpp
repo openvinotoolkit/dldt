@@ -88,7 +88,7 @@ public:
 //        for (std::size_t i = 0; i < size; ++i) {
 //            const auto &ref = expected[i];
 //            const auto &res = actual[i];
-//            std::cout << i << ". ref = " << ref << ", res = " << res << std::endl;
+//            std::cout << i << ". ref = " << static_cast<float>(ref) << ", res = " << static_cast<float>(res) << std::endl;
 //        }
 
         for (std::size_t i = 0; i < size; ++i) {
