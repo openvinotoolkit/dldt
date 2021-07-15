@@ -156,7 +156,7 @@ set(SRC
     type_prop/lstm_sequence.cpp
     type_prop/loop.cpp
     type_prop/matmul.cpp
-    type_prop/matrix_nms.cpp    
+    type_prop/matrix_nms.cpp
     type_prop/maximum.cpp
     type_prop/max_pool.cpp
     type_prop/minimum.cpp
@@ -368,7 +368,6 @@ set(MULTI_TEST_SRC
     backend/abc.in.cpp
     backend/abs.in.cpp
     backend/acos.in.cpp
-    backend/acosh.in.cpp
     backend/adaptive_avg_pool.in.cpp
     backend/adaptive_max_pool.in.cpp
     backend/add.in.cpp
