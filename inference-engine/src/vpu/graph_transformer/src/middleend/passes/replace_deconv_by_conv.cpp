@@ -149,7 +149,7 @@ void PassImpl::run(const Model& model) {
         auto output = stage->output(0);
         const auto& env = CompileEnv::get();
 
-        if (HwDisabled(env.config, stage->origLayer()->name)) {
+        if (HwDisabled(env.config, stage->origNode()->get_friendly_name())) {
             continue;
         }
 
@@ -180,7 +180,7 @@ void PassImpl::run(const Model& model) {
         auto upsampleStage = model->addNewStage<UpsamplingStage>(
                 stage->origLayerName() + "@Upsample",
                 StageType::Upsampling,
-                stage->origLayer(),
+                stage->origNode(),
                 {input},
                 {newOutput});
 
@@ -197,7 +197,7 @@ void PassImpl::run(const Model& model) {
         auto newStage = model->addNewStage<StubStage>(
                 stage->origLayerName() + "@UpsampleConv",
                 StageType::StubConv,
-                stage->origLayer(),
+                stage->origNode(),
                 {newOutput, newWeights, biases, scales},
                 {output});
 

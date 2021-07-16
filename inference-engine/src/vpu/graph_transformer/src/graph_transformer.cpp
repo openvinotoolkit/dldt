@@ -182,7 +182,7 @@ CompiledGraph::Ptr compileImpl(const ie::CNNNetwork& network, const std::shared_
                           env.config.get<IRWithScalesDirectoryOption>() + "/" + network.getName() + "_scales.bin");
     }
 
-    return backEnd->build(model, frontEnd->origLayers());
+    return backEnd->build(model, frontEnd->origNodes());
 }
 
 CompiledGraph::Ptr compileImpl(const Model& model) {
