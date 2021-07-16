@@ -38,7 +38,6 @@ if (ENABLE_CLDNN)
         set(CLDNN__ARCHITECTURE_TARGET "Linux64" CACHE STRING "" FORCE)
     endif()
     set(CLDNN_THREADING "${THREADING}" CACHE STRING "" FORCE)
-    set(GPU_DEBUG_CONFIG OFF CACHE BOOL "Enable debug config feature")
     add_subdirectory(clDNN)
 endif()
 
