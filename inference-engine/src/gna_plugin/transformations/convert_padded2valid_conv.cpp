@@ -33,16 +33,9 @@ struct ConvData {
     ngraph::element::Type element_type;
 };
 
-static bool VerifyAndGetConvParams(std::shared_ptr<ngraph::opset7::Convolution> conv, ConvData& conv_data) {
+static bool GetConvParams(std::shared_ptr<ngraph::opset7::Convolution> conv, ConvData& conv_data) {
     const auto& input = conv->input_value(0);
-
-    // We support only 2D conv batch 1
-    if (conv->get_dilations().size() != 2 ||
-        conv->get_strides().size() != 2 ||
-        input.get_shape()[0] != 1) {
-        return false;
-    }
-
+    auto xyz = conv->get_output_shape(0);
     conv_data.padding_type = conv->get_auto_pad();
     conv_data.input_channel_count = conv->input_value(0).get_shape()[1];
     conv_data.input_height = conv->input_value(0).get_shape()[2];
@@ -226,7 +219,7 @@ static bool Convert(std::shared_ptr<ngraph::Node> leading_transpose,
 
     ConvData conv_data;
 
-    if (!VerifyAndGetConvParams(std::dynamic_pointer_cast<ngraph::opset7::Convolution>(conv), conv_data))
+    if (!GetConvParams(std::dynamic_pointer_cast<ngraph::opset7::Convolution>(conv), conv_data))
         return false;
 
     // We are looking for Transpose(NHWC->NCHW) => Conv => Transpose(NCHW->NHWC)
@@ -287,10 +280,8 @@ ConvertPadded2ValidConv::ConvertPadded2ValidConv() {
 
     ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
         const auto& pattern_map = m.get_pattern_value_map();
-        auto conv_output = conv->output(0).get_node_shared_ptr();
-        IE_ASSERT(conv_output != nullptr);
-
-        auto bias_node = std::dynamic_pointer_cast<ngraph::opset7::Add>(conv_output);
+        auto bias_it = pattern_map.find(bias);
+        auto bias_node = (bias_it == std::end(pattern_map) ? nullptr : bias_it->second.get_node_shared_ptr());
 
         return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
             pattern_map.at(trailing_transpose).get_node_shared_ptr(), bias_node);

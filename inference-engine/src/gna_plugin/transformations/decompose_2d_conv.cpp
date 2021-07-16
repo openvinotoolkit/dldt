@@ -10,6 +10,7 @@
 
 #include <ngraph/opsets/opset7.hpp>
 #include <ngraph/pattern/op/wrap_type.hpp>
+#include <ngraph/pattern/op/or.hpp>
 #include <ngraph/rt_info.hpp>
 #include <ngraph/pass/manager.hpp>
 #include <ie_common.h>
@@ -18,10 +19,6 @@
 using namespace GNAPluginNS;
 
 NGRAPH_RTTI_DEFINITION(Decompose2DConv, "Decompose2DConv", 0);
-NGRAPH_RTTI_DEFINITION(Decompose2DConvWithBias, "Decompose2DConvWithBias", 0);
-NGRAPH_RTTI_DEFINITION(Decompose2DConvWithBiasAF, "Decompose2DConvWithBiasAF", 0);
-NGRAPH_RTTI_DEFINITION(Decompose2DConvWithBiasMaxPool, "Decompose2DConvWithBiasMaxPool", 0);
-NGRAPH_RTTI_DEFINITION(Decompose2DConvWithBiasMaxPoolAF, "Decompose2DConvWithBiasMaxPoolAF", 0);
 NGRAPH_RTTI_DEFINITION(Decompose2DConvTransposedWithBias, "Decompose2DConvTransposedWithBias", 0);
 NGRAPH_RTTI_DEFINITION(Decompose2DConvTransposedWithBiasAF, "Decompose2DConvTransposedWithBiasAF", 0);
 
@@ -55,7 +52,6 @@ struct ConvData {
     size_t pads_begin_width;
     size_t pads_end_height;
     size_t pads_end_width;
-    ngraph::Shape output_shape;
     size_t output_height;
     size_t output_width;
     ngraph::op::PadType padding_type;
@@ -94,9 +90,8 @@ static bool VerifyAndGetConvParams(std::shared_ptr<ngraph::opset7::Convolution> 
         return false;
     }
 
-    conv_data.output_shape = conv->get_output_shape(0);
-    conv_data.output_height = conv_data.output_shape[2];
-    conv_data.output_width = conv_data.output_shape[3];
+    conv_data.output_height = conv->get_output_shape(0)[2];
+    conv_data.output_width = conv->get_output_shape(0)[3];
     conv_data.padding_type = conv->get_auto_pad();
     conv_data.input_channel_count = conv->input_value(0).get_shape()[1];
     conv_data.input_height = conv->input_value(0).get_shape()[2];
@@ -116,7 +111,7 @@ static bool VerifyAndGetConvParams(std::shared_ptr<ngraph::opset7::Convolution> 
     conv_data.output_channel_count = conv_data.filter_count;
     conv_data.element_type = conv->get_element_type();
 
-    IE_ASSERT(conv_data.output_channel_count == conv_data.output_shape[1]);
+    IE_ASSERT(conv_data.output_channel_count == conv->get_output_shape(0)[1]);
 
     return true;
 }
@@ -158,7 +153,7 @@ static std::shared_ptr<ngraph::Node> VerifyBiasAndCreateConst(std::shared_ptr<ng
         if (bias_size == conv_data.filter_count) {
             const auto* srd_data_pointer = add_const->get_data_ptr<T>();
             std::vector<T> bias_values(srd_data_pointer, srd_data_pointer + bias_size);
-            return ngraph::opset7::Constant::create(conv_data.element_type, ngraph::Shape{ 1, bias_size , 1, 1 }, bias_values);
+            return ngraph::opset7::Constant::create(conv_data.element_type, ngraph::Shape{1, bias_size , 1, 1}, bias_values);
         }
     }
     // Bias size does not match (or dynamic bias), can't convert such convolution
@@ -192,7 +187,7 @@ static bool ShouldDecompose(const GraphData& graph_data, const ConvData& conv_da
         total_factorized_conv_channel_count % out_data.conv_count != 0 || conv_data.filter_channel_count % out_data.conv_count != 0)
         out_data.conv_count++;
 
-    // Currently we are able to split only convolutions without pooling in horizontal dimention
+    // Currently we are able to split only convolutions without pooling in horizontal dimension
     if (out_data.conv_count > GNA_MAX_PERMUTE_COL_COUNT ||
         ((maxpool_data.pool_size_width > 1 || maxpool_data.pool_stride_width > 1) && out_data.conv_count > 1))
         return false;
@@ -209,9 +204,9 @@ static std::shared_ptr<ngraph::opset7::StridedSlice> FlatCrop(ngraph::Output<ngr
     auto shape = input.get_shape();
     return std::make_shared<ngraph::opset7::StridedSlice>(
         input, // data
-        ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 }, { (size_t)0, offset }), // begin slice index
-        ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 }, { (size_t)0, offset + size }), // end slice index
-        ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 }, { (size_t)1, (size_t)1 }), // strides
+        ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{2}, {(size_t)0, offset}), // begin slice index
+        ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{2}, {(size_t)0, offset + size}), // end slice index
+        ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{2}, {(size_t)1, (size_t)1}), // strides
         std::vector<int64_t>{1, 0},  // begin mask
         std::vector<int64_t>{1, 0}); // end mask
 }
@@ -242,11 +237,11 @@ static std::shared_ptr<ngraph::Node> GeneratePadding(std::shared_ptr<ngraph::ops
     }
 
     auto flat_input = std::make_shared<ngraph::opset7::Reshape>(leading_transpose->input_value(0),
-        ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 },
-            ngraph::Shape{ 1ull, shape_size(leading_transpose->input_value(0).get_shape()) }), false);
+        ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{2},
+            ngraph::Shape{1ull, shape_size(leading_transpose->input_value(0).get_shape())}), false);
 
     // Zero padding
-    auto const_holding_padding = std::make_shared<ngraph::opset7::Constant>(conv_data.element_type, ngraph::Shape{ 1, biggest_padding }, 0);
+    auto const_holding_padding = std::make_shared<ngraph::opset7::Constant>(conv_data.element_type, ngraph::Shape{1, biggest_padding}, 0);
 
     copy_runtime_info(conv, const_holding_padding);
     std::shared_ptr<ngraph::Node> original_row = flat_input;
@@ -321,7 +316,7 @@ static std::vector<std::shared_ptr<ngraph::opset7::Constant>> Split2DConvFilters
     std::vector <std::shared_ptr<ngraph::opset7::Constant>> result;
     auto filter_shape = filters->get_output_shape(0);
     if (!horizontal_permute && !vertical_permute && split_channels == 1)
-        return { filters };
+        return {filters};
 
     IE_ASSERT(filter_shape.size() == 4);
 
@@ -359,19 +354,19 @@ static std::vector<std::shared_ptr<ngraph::opset7::Constant>> Split2DConvFilters
     if (vertical_permute && horizontal_permute) {
         for (auto new_filter : flat_filters)
             result.push_back(std::make_shared<ngraph::opset7::Constant>(element_type,
-                ngraph::Shape{ filter_shape[0], filter_shape[1] * filter_shape[2] * filter_shape[3] / split_channels, 1, 1 }, new_filter));
+                ngraph::Shape{filter_shape[0], filter_shape[1] * filter_shape[2] * filter_shape[3] / split_channels, 1, 1}, new_filter));
     } else if (vertical_permute && !horizontal_permute) {
         for (auto new_filter : flat_filters)
             result.push_back(std::make_shared<ngraph::opset7::Constant>(element_type,
-                ngraph::Shape{ filter_shape[0], filter_shape[1] * filter_shape[2] / split_channels, 1, filter_shape[3] }, new_filter));
+                ngraph::Shape{filter_shape[0], filter_shape[1] * filter_shape[2] / split_channels, 1, filter_shape[3]}, new_filter));
     } else if (!vertical_permute && horizontal_permute) {
         for (auto new_filter : flat_filters)
             result.push_back(std::make_shared<ngraph::opset7::Constant>(element_type,
-                ngraph::Shape{ filter_shape[0], filter_shape[1] * filter_shape[3] / split_channels, filter_shape[2], 1 }, new_filter));
+                ngraph::Shape{filter_shape[0], filter_shape[1] * filter_shape[3] / split_channels, filter_shape[2], 1}, new_filter));
     } else {
         for (auto new_filter : flat_filters)
             result.push_back(std::make_shared<ngraph::opset7::Constant>(element_type,
-                ngraph::Shape{ filter_shape[0], filter_shape[1] / split_channels, filter_shape[2], filter_shape[3] }, new_filter));
+                ngraph::Shape{filter_shape[0], filter_shape[1] / split_channels, filter_shape[2], filter_shape[3]}, new_filter));
     }
 
     return result;
@@ -384,26 +379,27 @@ static std::vector<std::shared_ptr<ngraph::opset7::Constant>> CreateSplit(const 
 
     if (out_data.conv_count > 1) {
         auto reshape_before_transpose = std::make_shared<ngraph::opset7::Reshape>(out_data.padded_input_plane,
-            ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 },
-                { shape_size(out_data.padded_input_plane->get_shape()) / out_data.conv_count, out_data.conv_count }), false);
+            ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{2},
+                {shape_size(out_data.padded_input_plane->get_shape()) / out_data.conv_count, out_data.conv_count}), false);
 
         auto transpose_before_channel_wise_split = std::make_shared<ngraph::opset7::Transpose>(reshape_before_transpose,
-            ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 2 }, { 1ll, 0ll })->output(0));
+            ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{2}, {1ll, 0ll})->output(0));
 
         // TODO: in what cases is this needed? Used only when the conv input plane is beyond GNA limit.
         // It transposes to the same layout as already done in last step...?
         // auto reshape_after_transpose = std::make_shared<ngraph::opset7::Reshape>(transpose_before_channel_wise_split,
-        //    ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 }, { (size_t)out_data.conv_count,
-        //        shape_size(out_data.padded_input_plane->get_shape()) / out_data.conv_count }), false);
+        //    ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{2}, {(size_t)out_data.conv_count,
+        //        shape_size(out_data.padded_input_plane->get_shape()) / out_data.conv_count}), false);
 
-        const auto axis_node = ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{}, { 0 });
+        const auto axis_node = ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{}, {0});
         const auto split = std::make_shared<ngraph::opset7::Split>(transpose_before_channel_wise_split, axis_node, out_data.conv_count);
         split_planes = split->outputs();
     } else {
         split_planes.push_back(out_data.padded_input_plane);
     }
 
-    // If the input plane exceeds GNA limits and we have split into several convolutions, then we need to split filter/filter data as well
+    // If the input plane exceeds GNA limits and we have split into several convolutions, then we need to split filter/kernel data as well;
+    // we also need to take filter height and potential dilation into account when modifying the filters
     bool vertical_permute = (conv_data.filter_height > 1);
     bool horizontal_permute = (conv_data.filter_dilation_width > 1);
 
@@ -450,15 +446,15 @@ static void TransformInput(const GraphData& graph_data, const ConvData& conv_dat
     auto dilated_chunks_concat = std::make_shared<ngraph::opset7::Concat>(dilated_input_planes, 0);
 
     auto transposed_dilated_chunks = std::make_shared<ngraph::op::Transpose>(dilated_chunks_concat,
-        ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 2 }, { 1ll, 0ll })->output(0));
+        ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{2}, {1ll, 0ll})->output(0));
 
     // Flattening of interleaved input planes
     auto flattened_dilated_transposed_input = std::make_shared<ngraph::opset7::Reshape>(transposed_dilated_chunks,
-        ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 2 },
-            { (size_t)1, (conv_data.pads_begin_width + conv_data.input_width + conv_data.pads_end_width) *
-        conv_data.input_channel_count * conv_data.output_height * conv_data.filter_height }), false);
+        ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{2},
+            {(size_t)1, (conv_data.pads_begin_width + conv_data.input_width + conv_data.pads_end_width) *
+        conv_data.input_channel_count * conv_data.output_height * conv_data.filter_height}), false);
 
-    copy_runtime_info(graph_data.conv, { dilated_chunks_concat, flattened_dilated_transposed_input, transposed_dilated_chunks });
+    copy_runtime_info(graph_data.conv, {dilated_chunks_concat, flattened_dilated_transposed_input, transposed_dilated_chunks });
     split_input_plane = flattened_dilated_transposed_input;
 }
 
@@ -508,15 +504,16 @@ static std::shared_ptr<ngraph::Node> GenerateDeomposedConv(const GraphData& grap
             size_t c_index = 0) {
                 // Transpose NHWC => NCHW
                 std::shared_ptr<ngraph::Node> nchw_input = std::make_shared<ngraph::op::Transpose>(input,
-                    ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 4 }, { 0ll, 3ll, 1ll, 2ll })->output(0));
+                    ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{4}, {0ll, 3ll, 1ll, 2ll})->output(0));
 
                 // 1D Convolution
                 auto conv = std::make_shared<ngraph::opset7::Convolution>(nchw_input, filters,
-                    ngraph::Strides{ 1, stride_width }, ngraph::CoordinateDiff{ 0, 0 }, ngraph::CoordinateDiff{ 0, 0 },
-                    ngraph::Strides{ 1, 1 }, ngraph::op::PadType::VALID);
+                    ngraph::Strides{1, stride_width}, ngraph::CoordinateDiff{0, 0}, ngraph::CoordinateDiff{0, 0},
+                    ngraph::Strides{1, 1}, ngraph::op::PadType::VALID);
                 std::string conv_name = source_conv2d->get_friendly_name() + "_H_" + std::to_string(h_index) + "_CH_" + std::to_string(c_index);
                 conv->set_friendly_name(conv_name);
 
+                // Bias
                 std::shared_ptr<ngraph::Node> last_conv_block_op = conv;
                 if (add_bias_const) {
                     last_conv_block_op = std::make_shared<ngraph::opset7::Add>(conv, add_bias_const);
@@ -525,21 +522,21 @@ static std::shared_ptr<ngraph::Node> GenerateDeomposedConv(const GraphData& grap
 
                 // Max pooling
                 if (pool_size_width > 1 || pool_stride_width > 1) {
-                    last_conv_block_op = std::make_shared<ngraph::opset7::MaxPool>(last_conv_block_op, ngraph::Strides{ 1, pool_stride_width },
-                        ngraph::Shape{ 0, 0 }, ngraph::Shape{ 0, 0 }, ngraph::Shape{ 1, pool_size_width }, rounding_type, ngraph::op::PadType::VALID);
+                    last_conv_block_op = std::make_shared<ngraph::opset7::MaxPool>(last_conv_block_op, ngraph::Strides{1, pool_stride_width},
+                        ngraph::Shape{0, 0}, ngraph::Shape{0, 0}, ngraph::Shape{1, pool_size_width}, rounding_type, ngraph::op::PadType::VALID);
                 }
 
                 // Activation function
                 if (af) {
-                    auto af_result = af->copy_with_new_inputs({ last_conv_block_op });
+                    auto af_result = af->copy_with_new_inputs({last_conv_block_op});
                     copy_runtime_info(conv, af_result);
                     last_conv_block_op = af_result;
                 }
 
                 // Transpose NCHW => NHWC
                 auto nhwc_output = std::make_shared<ngraph::op::Transpose>(last_conv_block_op,
-                    ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 4 }, { 0ull, 2ull, 3ull, 1ull })->output(0));
-                copy_runtime_info(source_conv2d, { nchw_input, conv, nhwc_output });
+                    ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{4}, {0ull, 2ull, 3ull, 1ull})->output(0));
+                copy_runtime_info(source_conv2d, {nchw_input, conv, nhwc_output});
                 return nhwc_output;
         };
 
@@ -558,21 +555,21 @@ static std::shared_ptr<ngraph::Node> GenerateDeomposedConv(const GraphData& grap
 
             // Transpose
             auto transposed_dilated_chunks = std::make_shared<ngraph::op::Transpose>(dilated_chunks_concat,
-                ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 2 }, { 1ll, 0ll })->output(0));
+                ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{2}, {1ll, 0ll})->output(0));
 
             // Flatten
             auto flatten_dilated_conv_input = std::make_shared<ngraph::opset7::Reshape>(transposed_dilated_chunks,
-                ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{ 4 },
-                    ngraph::Shape{ 1ull, 1ull, conv_data.output_width, h_1_filter_channel_count * conv_data.filter_width }), false);
+                ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{4},
+                    ngraph::Shape{1ull, 1ull, conv_data.output_width, h_1_filter_channel_count * conv_data.filter_width}), false);
 
-            copy_runtime_info(graph_data.conv, ngraph::NodeVector{ flatten_dilated_conv_input, transposed_dilated_chunks, dilated_chunks_concat });
+            copy_runtime_info(graph_data.conv, ngraph::NodeVector{flatten_dilated_conv_input, transposed_dilated_chunks, dilated_chunks_concat});
 
             nhwc_conv_y_input = flatten_dilated_conv_input;
         } else {
             // If no horizontal split is done, only reshape is required before decomposed convolution
             nhwc_conv_y_input = std::make_shared<ngraph::opset7::Reshape>(nhwc_conv_y_input,
-                ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{ 4 },
-                    ngraph::Shape{ 1ull, 1ull, padded_row_width, h_1_filter_channel_count }), false);
+                ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{4},
+                    ngraph::Shape{1ull, 1ull, padded_row_width, h_1_filter_channel_count}), false);
         }
 
         // Pointwise convolutions
@@ -628,9 +625,12 @@ static void Decompose(const GraphData& graph_data, ConvData& conv_data, const Ma
     //if (graph_data.max_pool && (maxpool_data.pool_size_height > 1 || maxpool_data.pool_stride_height > 1)) {
     //}
 
+    // TOOD: check this, if it's not duplicated in current code, compare to original
+    // it could be put here and also after convolution; besides that check why no bias after trailing transpose is handled here
+    // what with the flag for disable... option?
     // Activation function after trailing Transpose NCHW->NHWC
     if (graph_data.af && out_data.conv_count > 1) {
-        auto af_result = graph_data.af->copy_with_new_inputs({ conv_result });
+        auto af_result = graph_data.af->copy_with_new_inputs({conv_result});
         copy_runtime_info(graph_data.conv, af_result);
         conv_result = af_result;
     }
@@ -644,29 +644,29 @@ static bool Convert(std::shared_ptr<ngraph::Node> leading_transpose,
     std::shared_ptr<ngraph::Node> conv,
     std::shared_ptr<ngraph::Node> trailing_transpose,
     std::shared_ptr<ngraph::Node> bias,
-    std::shared_ptr<ngraph::Node> af,
     std::shared_ptr<ngraph::Node> max_pool,
+    std::shared_ptr<ngraph::Node> af,
     std::shared_ptr<ngraph::Node> last_op_for_replacement) {
 
-    GraphData graph_data{ std::dynamic_pointer_cast<ngraph::opset7::Transpose>(leading_transpose),
+    GraphData graph_data{std::dynamic_pointer_cast<ngraph::opset7::Transpose>(leading_transpose),
         std::dynamic_pointer_cast<ngraph::opset7::Convolution>(conv),
         std::dynamic_pointer_cast<ngraph::opset7::Transpose>(trailing_transpose),
         std::dynamic_pointer_cast<ngraph::op::util::UnaryElementwiseArithmetic>(af),
         std::dynamic_pointer_cast<ngraph::opset7::MaxPool>(max_pool),
-        last_op_for_replacement };
+        last_op_for_replacement};
     ConvData conv_data;
-    MaxPoolData maxpool_data{ 1, 1 };
-    OutData out_data{ 0, 0 };
+    MaxPoolData maxpool_data{1, 1};
+    OutData out_data{0, 0};
 
     if (!VerifyAndGetConvParams(std::dynamic_pointer_cast<ngraph::opset7::Convolution>(conv), conv_data, out_data))
         return false;
 
     // We are looking for Transpose(NHWC->NCHW) => Conv => Transpose(NCHW->NHWC)
     // or similar cases, so required network must be in NHWC order like in TF
-    if (!TransposeOrderMatches(std::dynamic_pointer_cast<ngraph::opset7::Transpose>(leading_transpose), { 0, 3, 1, 2 }))
+    if (!TransposeOrderMatches(std::dynamic_pointer_cast<ngraph::opset7::Transpose>(leading_transpose), {0, 3, 1, 2}))
         return false;
 
-    if (!TransposeOrderMatches(std::dynamic_pointer_cast<ngraph::opset7::Transpose>(trailing_transpose), { 0, 2, 3, 1 }))
+    if (!TransposeOrderMatches(std::dynamic_pointer_cast<ngraph::opset7::Transpose>(trailing_transpose), {0, 2, 3, 1}))
         return false;
 
     if (conv_data.element_type == ngraph::element::f32) {
@@ -701,138 +701,39 @@ static std::function<bool(ngraph::Output<ngraph::Node>)> consumers_and_rank(cons
 Decompose2DConv::Decompose2DConv() {
     MATCHER_SCOPE(Decompose2DConv);
 
-    auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
-        consumers_and_rank(1, 4));
-    auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
-        ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ conv, const_input_i64 },
-        consumers_and_rank(1, 4));
-
-    ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
-        const auto& pattern_map = m.get_pattern_value_map();
-        return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
-            pattern_map.at(trailing_transpose).get_node_shared_ptr(), nullptr, nullptr, nullptr,
-            pattern_map.at(trailing_transpose).get_node_shared_ptr());
-    };
-
-    auto m = std::make_shared<ngraph::pattern::Matcher>(trailing_transpose, matcher_name);
-    this->register_matcher(m, callback);
-}
-
-Decompose2DConvWithBias::Decompose2DConvWithBias() {
-    MATCHER_SCOPE(Decompose2DConvWithBias);
-
-    auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
     auto const_input = ngraph::pattern::wrap_type<ngraph::opset7::Constant>();
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
+    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ngraph::pattern::any_input(), const_input},
         consumers_and_rank(1, 4));
     auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
+        {leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4))},
         ngraph::pattern::consumers_count(1));
-    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({ conv, const_input },
+    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({conv, const_input},
         ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ bias, const_input_i64 },
-        consumers_and_rank(1, 4));
-
-    ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
-        const auto& pattern_map = m.get_pattern_value_map();
-        return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
-            pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(), nullptr, nullptr,
-            pattern_map.at(trailing_transpose).get_node_shared_ptr());
-    };
-
-    auto m = std::make_shared<ngraph::pattern::Matcher>(trailing_transpose, matcher_name);
-    this->register_matcher(m, callback);
-}
-
-Decompose2DConvWithBiasAF::Decompose2DConvWithBiasAF() {
-    MATCHER_SCOPE(Decompose2DConvWithBiasAF);
-
-    auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
-    auto const_input = ngraph::pattern::wrap_type<ngraph::opset7::Constant>();
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
-        consumers_and_rank(1, 4));
-    auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
+    auto max_pool = ngraph::pattern::wrap_type<ngraph::opset7::MaxPool>({bias},
         ngraph::pattern::consumers_count(1));
-    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({ conv, const_input },
-        ngraph::pattern::consumers_count(1));
-    auto af = ngraph::pattern::wrap_type<ngraph::opset7::Relu, ngraph::opset7::Sigmoid,
+    auto af1 = ngraph::pattern::wrap_type<ngraph::opset7::Relu, ngraph::opset7::Sigmoid,
         ngraph::opset7::Tanh, ngraph::opset7::Abs, ngraph::opset7::Log, ngraph::opset7::Exp,
-        ngraph::opset7::Sign, ngraph::opset7::Clamp>({ bias },
-        ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ af, const_input_i64 },
-        consumers_and_rank(1, 4));
-
-    ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
-        const auto& pattern_map = m.get_pattern_value_map();
-        return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
-            pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(),
-            pattern_map.at(af).get_node_shared_ptr(), nullptr,
-            pattern_map.at(trailing_transpose).get_node_shared_ptr());
-    };
-
-    auto m = std::make_shared<ngraph::pattern::Matcher>(trailing_transpose, matcher_name);
-    this->register_matcher(m, callback);
-}
-
-Decompose2DConvWithBiasMaxPool::Decompose2DConvWithBiasMaxPool() {
-    MATCHER_SCOPE(Decompose2DConvWithBiasMaxPool);
-
-    auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
-    auto const_input = ngraph::pattern::wrap_type<ngraph::opset7::Constant>();
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
-        consumers_and_rank(1, 4));
-    auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
-        ngraph::pattern::consumers_count(1));
-    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({ conv, const_input },
-        ngraph::pattern::consumers_count(1));
-    auto max_pool = ngraph::pattern::wrap_type<ngraph::opset7::MaxPool>({ bias, const_input },
-        ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ max_pool, const_input_i64 },
-        consumers_and_rank(1, 4));
-
-    ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
-        const auto& pattern_map = m.get_pattern_value_map();
-        return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
-            pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(),
-            nullptr, pattern_map.at(max_pool).get_node_shared_ptr(),
-            pattern_map.at(trailing_transpose).get_node_shared_ptr());
-    };
-
-    auto m = std::make_shared<ngraph::pattern::Matcher>(trailing_transpose, matcher_name);
-    this->register_matcher(m, callback);
-}
-
-Decompose2DConvWithBiasMaxPoolAF::Decompose2DConvWithBiasMaxPoolAF() {
-    MATCHER_SCOPE(Decompose2DConvWithBiasMaxPoolAF);
-
-    auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
-    auto const_input = ngraph::pattern::wrap_type<ngraph::opset7::Constant>();
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
-        consumers_and_rank(1, 4));
-    auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
-        ngraph::pattern::consumers_count(1));
-    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({ conv, const_input },
-        ngraph::pattern::consumers_count(1));
-    auto max_pool = ngraph::pattern::wrap_type<ngraph::opset7::MaxPool>({ bias, const_input },
-        ngraph::pattern::consumers_count(1));
-    auto af = ngraph::pattern::wrap_type<ngraph::opset7::Relu, ngraph::opset7::Sigmoid,
+        ngraph::opset7::Sign, ngraph::opset7::Clamp>({bias}, ngraph::pattern::consumers_count(1));
+    auto af2 = ngraph::pattern::wrap_type<ngraph::opset7::Relu, ngraph::opset7::Sigmoid,
         ngraph::opset7::Tanh, ngraph::opset7::Abs, ngraph::opset7::Log, ngraph::opset7::Exp,
-        ngraph::opset7::Sign, ngraph::opset7::Clamp>({ max_pool },
-        ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ af, const_input_i64 },
+        ngraph::opset7::Sign, ngraph::opset7::Clamp>({max_pool}, ngraph::pattern::consumers_count(1));
+    auto transpose_input = std::make_shared<ngraph::pattern::op::Or>(ngraph::OutputVector{conv, bias, max_pool, af1, af2});
+    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({transpose_input, const_input},
         consumers_and_rank(1, 4));
 
     ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
         const auto& pattern_map = m.get_pattern_value_map();
+        auto bias_it = pattern_map.find(bias);
+        auto bias_node = (bias_it == std::end(pattern_map) ? nullptr : bias_it->second.get_node_shared_ptr());
+        auto max_pool_it = pattern_map.find(max_pool);
+        auto max_pool_node = (max_pool_it == std::end(pattern_map) ? nullptr : max_pool_it->second.get_node_shared_ptr());
+        auto af1_it = pattern_map.find(af1);
+        auto af2_it = pattern_map.find(af2);
+        auto af_node = (af1_it == std::end(pattern_map) ?
+            ((af2_it == std::end(pattern_map) ? nullptr : af2_it->second.get_node_shared_ptr())) : af1_it->second.get_node_shared_ptr());
+
         return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
-            pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(),
-            pattern_map.at(af).get_node_shared_ptr(), pattern_map.at(max_pool).get_node_shared_ptr(),
+            pattern_map.at(trailing_transpose).get_node_shared_ptr(), bias_node, max_pool_node, af_node,
             pattern_map.at(trailing_transpose).get_node_shared_ptr());
     };
 
@@ -845,14 +746,14 @@ Decompose2DConvTransposedWithBias::Decompose2DConvTransposedWithBias() {
 
     auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
     auto const_input = ngraph::pattern::wrap_type<ngraph::opset7::Constant>();
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
+    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ngraph::pattern::any_input(), const_input_i64},
         consumers_and_rank(1, 4));
     auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
+        {leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4))},
         ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ conv, const_input_i64 },
+    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({conv, const_input_i64},
         consumers_and_rank(1, 4));
-    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({ trailing_transpose, const_input },
+    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({trailing_transpose, const_input},
         ngraph::pattern::consumers_count(1));
 
     ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
@@ -871,25 +772,25 @@ Decompose2DConvTransposedWithBiasAF::Decompose2DConvTransposedWithBiasAF() {
 
     auto const_input_i64 = ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::type_matches(ngraph::element::i64));
     auto const_input = ngraph::pattern::wrap_type<ngraph::opset7::Constant>();
-    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ ngraph::pattern::any_input(), const_input_i64 },
+    auto leading_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ngraph::pattern::any_input(), const_input_i64},
         consumers_and_rank(1, 4));
     auto conv = ngraph::pattern::wrap_type<ngraph::opset7::Convolution>(
-        { leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4)) },
+        {leading_transpose, ngraph::pattern::wrap_type<ngraph::opset7::Constant>(ngraph::pattern::rank_equals(4))},
         ngraph::pattern::consumers_count(1));
-    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({ conv, const_input_i64 },
+    auto trailing_transpose = ngraph::pattern::wrap_type<ngraph::opset7::Transpose>({conv, const_input_i64},
         consumers_and_rank(1, 4));
-    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({ trailing_transpose, const_input },
+    auto bias = ngraph::pattern::wrap_type<ngraph::opset7::Add>({trailing_transpose, const_input},
         ngraph::pattern::consumers_count(1));
     auto af = ngraph::pattern::wrap_type<ngraph::opset7::Relu, ngraph::opset7::Sigmoid,
         ngraph::opset7::Tanh, ngraph::opset7::Abs, ngraph::opset7::Log, ngraph::opset7::Exp,
-        ngraph::opset7::Sign, ngraph::opset7::Clamp>({ bias },
+        ngraph::opset7::Sign, ngraph::opset7::Clamp>({bias},
         ngraph::pattern::consumers_count(1));
 
     ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
         const auto& pattern_map = m.get_pattern_value_map();
         return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
             pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(),
-            pattern_map.at(af).get_node_shared_ptr(), nullptr,
+            nullptr, pattern_map.at(af).get_node_shared_ptr(),
             pattern_map.at(af).get_node_shared_ptr());
     };
 
