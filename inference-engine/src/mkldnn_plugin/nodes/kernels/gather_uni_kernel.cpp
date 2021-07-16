@@ -530,7 +530,11 @@ void jitUniGatherKernel<isa>::calcSrcShiftShort(Xbyak::Ymm& dstIndices, Xbyak::Y
     uni_vcvtdq2ps(vmmAux0, vmmBeforeAxisSum);
     uni_vcvtdq2ps(dstIndices, vmmSrcAfterBatchSize);
     uni_vdivps(vmmAux0, vmmAux0, dstIndices);
-    vroundps(vmmAux0, vmmAux0, 0x1B);
+    if (isa == x64::avx2) {
+        vroundps(vmmAux0, vmmAux0, 0x1);
+    } else if (isa == x64::avx512_common) {
+        vrndscaleps(vmmAux0, vmmAux0, 0x1);
+    }
     uni_vcvtps2dq(vmmAux0, vmmAux0);
 
     uni_vpmulld(vmmAux0, vmmAux0, vmmSpecIdxSize);
@@ -551,7 +555,11 @@ void jitUniGatherKernel<isa>::calcSrcShiftShort(Xbyak::Zmm& dstIndices, Xbyak::O
     uni_vcvtdq2ps(vmmAux0, vmmBeforeAxisSum);
     uni_vcvtdq2ps(dstIndices, vmmSrcAfterBatchSize);
     uni_vdivps(vmmAux0, vmmAux0, dstIndices);
-    vroundps(vmmAux0, vmmAux0, 0x1B);
+    if (isa == x64::avx2) {
+        vroundps(vmmAux0, vmmAux0, 0x1);
+    } else if (isa == x64::avx512_common) {
+        vrndscaleps(vmmAux0, vmmAux0, 0x1);
+    }
     uni_vcvtps2dq(vmmAux0, vmmAux0);
 
     uni_vpmulld(vmmAux0, vmmAux0, vmmSpecIdxSize);
@@ -1037,7 +1045,11 @@ void jitUniGatherKernel<isa>::gatherShortIdx16() {
     uni_vcvtdq2ps(vmmAux0, vmmBeforeAxisSum);
     uni_vcvtdq2ps(vmmAux1, vmmSrcAfterBatchSize);
     uni_vdivps(vmmAux0, vmmAux0, vmmAux1);
-    vroundps(vmmAux0, vmmAux0, 0x1B);
+    if (isa == x64::avx2) {
+        vroundps(vmmAux0, vmmAux0, 0x1);
+    } else if (isa == x64::avx512_common) {
+        vrndscaleps(vmmAux0, vmmAux0, 0x1);
+    }
     uni_vcvtps2dq(vmmAux0, vmmAux0);
     uni_vpmulld(vmmAux0, vmmAux0, vmmSpecIdxSize);
     uni_vpaddd(vmmAux0, vmmAux0, vmmSpecIndices);
@@ -1121,7 +1133,11 @@ void jitUniGatherKernel<isa>::gatherShortIdx8() {
     uni_vcvtdq2ps(vmmAux0, vmmBeforeAxisSum);
     uni_vcvtdq2ps(vmmAux1, vmmSrcAfterBatchSize);
     uni_vdivps(vmmAux0, vmmAux0, vmmAux1);
-    vroundps(vmmAux0, vmmAux0, 0x1B);
+    if (isa == x64::avx2) {
+        vroundps(vmmAux0, vmmAux0, 0x1);
+    } else if (isa == x64::avx512_common) {
+        vrndscaleps(vmmAux0, vmmAux0, 0x1);
+    }
     uni_vcvtps2dq(vmmAux0, vmmAux0);
     uni_vpmulld(vmmAux0, vmmAux0, vmmSpecIdxSize);
     uni_vpaddd(vmmAux0, vmmAux0, vmmSpecIndices);

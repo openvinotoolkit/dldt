@@ -161,8 +161,8 @@ void MKLDNNGatherNode::execute(mkldnn::stream strm) {
 //            int axisDimInBytes = axisDim * dataTypeSize;
             int dts = dataTypeSize;
 
-    std::string seqStr = std::string("[") + std::to_string(ithr) + "] start: " + std::to_string(start) + "; end: " + std::to_string(end);
-    std::string bIdx = "\nbatchchIndices {", btw = "}\nbetweenBatchAndAxisIdx {", spIdx = "}\nspecIndices {";
+//    std::string seqStr = std::string("[") + std::to_string(ithr) + "] start: " + std::to_string(start) + "; end: " + std::to_string(end);
+//    std::string bIdx = "\nbatchchIndices {", btw = "}\nbetweenBatchAndAxisIdx {", spIdx = "}\nspecIndices {";
             uint32_t vlen = jitKernel->getVecLen();
             int idxTypeSize = sizeof(int32_t);
             auto idxElPerVec = vlen / idxTypeSize;
@@ -178,14 +178,14 @@ void MKLDNNGatherNode::execute(mkldnn::stream strm) {
                 betweenBatchAndAxisIdx[i] = ((start + i) / specIndicesSize) % betweenBatchAndAxis;
                 specIndices[i] = (start + i) % specIndicesSize;
 
-bIdx += std::to_string(batchIndices[i]) + ";";
-btw += std::to_string(betweenBatchAndAxisIdx[i]) + ";";
-spIdx += std::to_string(specIndices[i]) + ";";
+//bIdx += std::to_string(batchIndices[i]) + ";";
+//btw += std::to_string(betweenBatchAndAxisIdx[i]) + ";";
+//spIdx += std::to_string(specIndices[i]) + ";";
             }
-seqStr += bIdx + btw + spIdx + "}\n";
+//seqStr += bIdx + btw + spIdx + "}\n";
             int beforeAxisCounter = betweenBatchAndAxisIdx[0];//start / betweenBatchAndAxis;
-printf("%sbeforeAxisCounter: %d; srcAfterBatchSizeInBytes: %d; afterAxisSize: %lu; betweenBatchAndAxis: %lu; specIndicesSize: %lu\n",
-        seqStr.c_str(), beforeAxisCounter, srcAfterBatchSizeInBytes, afterAxisSize, betweenBatchAndAxis, specIndicesSize);
+//printf("%sbeforeAxisCounter: %d; srcAfterBatchSizeInBytes: %d; afterAxisSize: %lu; betweenBatchAndAxis: %lu; specIndicesSize: %lu\n",
+//        seqStr.c_str(), beforeAxisCounter, srcAfterBatchSizeInBytes, afterAxisSize, betweenBatchAndAxis, specIndicesSize);
 
             int specIndicesSizeInt = specIndicesSize * idxTypeSize;
             size_t idxIter = specIndices[0] * idxTypeSize;
@@ -228,9 +228,9 @@ printf("%sbeforeAxisCounter: %d; srcAfterBatchSizeInBytes: %d; afterAxisSize: %l
                 int div = idxElPerVec / specIndicesSize;
                 int remainder = idxElPerVec % specIndicesSize;
                 for (int i = 1; i < idxElPerVec; i++) {
-                    if (permIdx[i - 1] == idxElPerVec)
-                        permIdx[i - 1] = idxElPerVec - specIndicesSize;
                     permIdx[i] = permIdx[i - 1] + 1;
+                    if (permIdx[i] == idxElPerVec)
+                        permIdx[i] = idxElPerVec - specIndicesSize;
                 }
                 for (int i = 0; i < idxElPerVec; i++) {
                     if (specIndices[i] < specIndicesSize - remainder)
