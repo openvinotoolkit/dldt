@@ -43,6 +43,9 @@ public:
 
     virtual std::unique_ptr<MemoryDesc> clone() const = 0;
 
+    // clone descriptor with new dims. Throws an exception if some of the new dims conflicts with the internal shape (i.e. its defined dims and rank)
+    virtual std::unique_ptr<MemoryDesc> cloneWithNewDims(const std::vector<size_t>& dims) const = 0;
+
     // InitTensorsAreEqual
     virtual bool isCompatible(const MemoryDesc& rhs) const = 0;
 
@@ -55,6 +58,9 @@ public:
     virtual bool checkGeneralLayout(GeneralLayout layoutType) const = 0;
 
     virtual std::string serializeFormat() const = 0;
+
+    // Get memory upper bound if possible. Can be undefined
+    virtual size_t getMaxMemSize() const = 0;
 
     // Get minimal required memory size in bytes. Can be undefined
     size_t getMemSize() const {
@@ -88,8 +94,8 @@ public:
 protected:
     MemoryDesc() : shape(std::vector<size_t>()), type(Undef) {}
 
-    MemoryDesc(const Shape& shape, MemoryDescType type)
-            : shape(shape), type(type) {}
+    MemoryDesc(Shape shape, MemoryDescType type)
+            : shape(std::move(shape)), type(type) {}
 
     MemoryDesc(const std::vector<size_t>& dims, MemoryDescType type)
             : shape(dims), type(type) {}

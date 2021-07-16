@@ -44,8 +44,8 @@ public:
     void setProperty(const std::map<std::string, std::string> &properties);
     Config getProperty() const;
 
-    void getInputBlobs(InferenceEngine::BlobMap &in_map);
-    void getOutputBlobs(InferenceEngine::BlobMap &out_map);
+    InferenceEngine::Blob::Ptr getInputBlob(const std::string& name);
+    InferenceEngine::Blob::Ptr getOutputBlob(const std::string& name);
 
     template<typename NET>
     void CreateGraph(NET &network,
@@ -57,7 +57,8 @@ public:
     }
 
     void PushInputData(const std::string& name, const InferenceEngine::Blob::Ptr &in);
-    void PullOutputData(const InferenceEngine::BlobMap &out);
+    // TODO [DS]: phase 2: return to constant reference when dynamic blob representation becomes available
+    void PullOutputData(InferenceEngine::BlobMap &out);
 
     void Infer(MKLDNNInferRequest* request = nullptr, int batch = -1);
 

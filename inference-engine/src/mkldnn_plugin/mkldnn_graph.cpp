@@ -593,7 +593,8 @@ void MKLDNNGraph::AllocateWithReuse() {
             int e_start = edge->getParent()->execIndex;
             int e_finish = edge->getChild()->execIndex;
 
-            int64_t e_size = edge->getDesc().getMemSize();  // size in bytes (from the beginning of data to the last element)
+            int64_t e_size = edge->getDesc().getMaxMemSize();  // size in bytes (from the beginning of data to the last element)
+            //TODO [DS]: phase 2: remove this restriction
             if (e_size == MemoryDesc::UNDEFINED_SIZE) {
                 IE_THROW() << "Can not allocate memory since the size is undefined.";
             }
@@ -718,7 +719,7 @@ void MKLDNNGraph::PushInputData(const std::string& name, const InferenceEngine::
     }
 }
 
-void MKLDNNGraph::PullOutputData(const BlobMap &out) {
+void MKLDNNGraph::PullOutputData(BlobMap &out) {
     if (!IsReady())
         IE_THROW() << "Wrong state. Topology not ready.";
 
@@ -727,20 +728,31 @@ void MKLDNNGraph::PullOutputData(const BlobMap &out) {
         auto node = outputMap.second;
         const MKLDNNMemory& intr_blob = node->getParentEdgeAt(0)->getMemory();
 
-        if (!out.count(name)) {
-            IE_THROW(Unexpected) << "The network outputs do not contain mkldnn graph output node name: \"" << name << "\"";
+        // TODO [DS]: phase 2: remove this blob allocation when possible, i.e. when dynamic ie blob representation becomes available
+        if (out.find(name) == out.end()) {
+            out[name] = MemoryDescUtils::interpretAsBlob(intr_blob);
         }
 
-        const Blob::Ptr &ext_blob = out.at(name);
+        // TODO [DS]: is it sill true for the new paradigm?
+//        if (!out.count(name)) {
+//            IE_THROW(Unexpected) << "The network outputs do not contain mkldnn graph output node name: \"" << name << "\"";
+//        }
+
+        if (out.at(name)->size() != intr_blob.GetElementsCount()) {
+            // TODO [DS]: phase 2: rewrite when dynamic ie blob representation becomes available
+//            IE_THROW() << "Output blob number of elements is not equal network output number of elements ("
+//                       << ext_blob->size() << "!=" << intr_blob.GetElementsCount() << ").";
+            out[name] = MemoryDescUtils::interpretAsBlob(intr_blob);
+        }
+
+        auto ext_blob = out.at(name);
 
         auto srcPrec = MKLDNNExtensionUtils::DataTypeToIEPrecision(intr_blob.GetDataType());
         auto dstPrec = ext_blob->getTensorDesc().getPrecision();
+
         if (srcPrec == dstPrec && ext_blob->byteSize() != intr_blob.GetSize())
                 IE_THROW() << "Output blob byte size is not equal network output byte size ("
                                    << ext_blob->byteSize() << "!=" << intr_blob.GetSize() << ").";
-        if (ext_blob->size() != intr_blob.GetElementsCount())
-            IE_THROW() << "Output blob number of elements is not equal network output number of elements ("
-                               << ext_blob->size() << "!=" << intr_blob.GetElementsCount() << ").";
 
         void *ext_blob_ptr = ext_blob->buffer();
         void *intr_blob_ptr = intr_blob.GetData();
@@ -945,16 +957,20 @@ Config MKLDNNGraph::getProperty() const {
     return config;
 }
 
-void MKLDNNGraph::getInputBlobs(InferenceEngine::BlobMap &resp) {
-    for (auto &it : inputNodesMap) {
-        resp[it.first] = MemoryDescUtils::interpretAsBlob(it.second->getChildEdgeAt(0)->getMemory());
+Blob::Ptr MKLDNNGraph::getInputBlob(const std::string& name) {
+    auto itr = inputNodesMap.find(name);
+    if (itr != inputNodesMap.end()) {
+        return MemoryDescUtils::interpretAsBlob(itr->second->getChildEdgeAt(0)->getMemory());
     }
+    return nullptr;
 }
 
-void MKLDNNGraph::getOutputBlobs(InferenceEngine::BlobMap &resp) {
-    for (auto &it : outputNodesMap) {
-        resp[it.first] = MemoryDescUtils::interpretAsBlob(it.second->getParentEdgeAt(0)->getMemory());
+Blob::Ptr MKLDNNGraph::getOutputBlob(const std::string& name) {
+    auto itr = outputNodesMap.find(name);
+    if (itr != outputNodesMap.end()) {
+        return MemoryDescUtils::interpretAsBlob(itr->second->getParentEdgeAt(0)->getMemory());
     }
+    return nullptr;
 }
 
 void MKLDNNGraph::DropNode(const MKLDNNNodePtr &node) {

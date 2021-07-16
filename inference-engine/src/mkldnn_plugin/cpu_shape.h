@@ -150,4 +150,21 @@ inline bool isEqualOrUndefined(const std::vector<size_t> lhs, const std::vector<
     return true;
 }
 
+inline std::string dims2str(const std::vector<size_t>& dims) {
+    std::stringstream output;
+    output << "{";
+
+    auto itr = dims.begin();
+    do {
+       if (*itr == Shape::UNDEFINED_DIM) {
+           output << "?";
+       } else {
+           output << *itr;
+       }
+    } while (++itr != dims.end() && output << ", ");
+
+    output << "}";
+    return output.str();
+}
+
 }  // namespace MKLDNNPlugin
