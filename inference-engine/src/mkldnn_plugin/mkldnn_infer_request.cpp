@@ -35,13 +35,15 @@ MKLDNNPlugin::MKLDNNInferRequest::MKLDNNInferRequest(InferenceEngine::InputsData
         IE_THROW() << "No graph was found";
     graph = &(execNetwork->GetGraph()._graph);
 
-    // Allocate all input blobs
+    // Allocate all input blobs if shape is static, delay allocation otherwise
     for (const auto& it : _networkInputs) {
-        MKLDNNInferRequest::GetBlob(it.first);
+        if (it.second->getInputData()->getPartialShape().is_static())
+            MKLDNNInferRequest::GetBlob(it.first);
     }
-    // Allocate all output blobs
+    // Allocate all output blobs if shape is static, delay allocation otherwise
     for (const auto& it : _networkOutputs) {
-        MKLDNNInferRequest::GetBlob(it.first);
+        if (it.second->getPartialShape().is_static())
+            MKLDNNInferRequest::GetBlob(it.first);
     }
 
     // Save all MemoryLayer data tensors. Will use insight about mechanics
@@ -213,8 +215,6 @@ InferenceEngine::Blob::Ptr MKLDNNPlugin::MKLDNNInferRequest::GetBlob(const std::
     InferenceEngine::Blob::Ptr data;
 
     if (graph->hasInputWithName(name)) {
-        InferenceEngine::BlobMap blobs;
-        graph->getInputBlobs(blobs);
         // ROI blob is returned only if it was set previously.
         auto it = _preProcData.find(name);
         if (it != _preProcData.end()) {
@@ -223,7 +223,12 @@ InferenceEngine::Blob::Ptr MKLDNNPlugin::MKLDNNInferRequest::GetBlob(const std::
         }
 
         if (_inputs.find(name) == _inputs.end()) {
-            InferenceEngine::TensorDesc desc = blobs[name]->getTensorDesc();
+            auto pBlob = graph->getInputBlob(name);
+            if (!pBlob) {
+                IE_THROW() << "MKLDNN graph doesn't contain input node with name: " << name;
+            }
+
+            InferenceEngine::TensorDesc desc = pBlob->getTensorDesc();
 
             if (_networkInputs.find(name) != _networkInputs.end()) {
                 InferenceEngine::Layout l = _networkInputs[name]->getLayout();
@@ -235,7 +240,7 @@ InferenceEngine::Blob::Ptr MKLDNNPlugin::MKLDNNInferRequest::GetBlob(const std::
 
             _inputs[name] = make_blob_with_precision(desc);
             _inputs[name]->allocate();
-            if (blobs[name]->getTensorDesc() == desc &&
+            if (pBlob->getTensorDesc() == desc &&
                 graph->_normalizePreprocMap.find(name) == graph->_normalizePreprocMap.end() && !graph->getProperty().batchLimit) {
                 externalPtr[name] = _inputs[name]->buffer();
             }
@@ -258,9 +263,12 @@ InferenceEngine::Blob::Ptr MKLDNNPlugin::MKLDNNInferRequest::GetBlob(const std::
     }
 
     if (graph->hasOutputWithName(name)) {
-        InferenceEngine::BlobMap blobs;
-        graph->getOutputBlobs(blobs);
         if (_outputs.find(name) == _outputs.end()) {
+            auto pBlob = graph->getOutputBlob(name);
+            if (!pBlob) {
+                IE_THROW() << "MKLDNN graph doesn't contain output node with name: " << name;
+            }
+
             if (!data) {
                 InferenceEngine::TensorDesc desc = _networkOutputs[name]->getTensorDesc();
                 desc.setPrecision(normalizeToSupportedPrecision(desc.getPrecision()));
@@ -275,7 +283,7 @@ InferenceEngine::Blob::Ptr MKLDNNPlugin::MKLDNNInferRequest::GetBlob(const std::
                 data = make_blob_with_precision(desc);
                 data->allocate();
             } else {
-                const auto& expectedTensorDesc = blobs[name]->getTensorDesc();
+                const auto& expectedTensorDesc = pBlob->getTensorDesc();
 
                 if (expectedTensorDesc.getPrecision() != data->getTensorDesc().getPrecision()) {
                     IE_THROW(ParameterMismatch) << "Network input and output use the same name: " << name << " but expect blobs with different precision: "
@@ -295,7 +303,7 @@ InferenceEngine::Blob::Ptr MKLDNNPlugin::MKLDNNInferRequest::GetBlob(const std::
             }
 
             _outputs[name] = data;
-            if (!externalPtr.count(name) && data->getTensorDesc() == blobs[name]->getTensorDesc() && !graph->getProperty().batchLimit) {
+            if (!externalPtr.count(name) && data->getTensorDesc() == pBlob->getTensorDesc() && !graph->getProperty().batchLimit) {
                 externalPtr[name] = data->buffer();
             }
         }
@@ -366,12 +374,12 @@ void MKLDNNPlugin::MKLDNNInferRequest::SetBlob(const std::string& name, const In
                 IE_THROW(ParameterMismatch) << "Failed to set input blob. Blocking descriptor mismatch.";
             }
 
-            InferenceEngine::BlobMap blobs;
-            graph->getInputBlobs(blobs);
-            if (blobs.find(name) == blobs.end())
+            auto pBlob = graph->getInputBlob(name);
+            if (!pBlob) {
                 IE_THROW() << "MKLDNN graph doesn't contain input node with name: " << name;
+            }
 
-            if (data->getTensorDesc() == blobs.at(name)->getTensorDesc() &&
+            if (data->getTensorDesc() == pBlob->getTensorDesc() &&
                 graph->_normalizePreprocMap.find(name) == graph->_normalizePreprocMap.end() && !graph->getProperty().batchLimit) {
                 externalPtr[name] = data->buffer();
             } else if (externalPtr.find(name) != externalPtr.end()) {
@@ -404,12 +412,11 @@ void MKLDNNPlugin::MKLDNNInferRequest::SetBlob(const std::string& name, const In
                 IE_THROW(ParameterMismatch) << "Failed to set output blob. Blocking descriptor mismatch.";
         }
 
-        InferenceEngine::BlobMap blobs;
-        graph->getOutputBlobs(blobs);
-        if (blobs.find(name) == blobs.end())
+        auto pBlob = graph->getOutputBlob(name);
+        if (!pBlob)
             IE_THROW() << "MKLDNN graph doesn't contain output node with name: " << name;
 
-        if (data->getTensorDesc() == blobs.at(name)->getTensorDesc() &&
+        if (data->getTensorDesc() == pBlob->getTensorDesc() &&
                 !graph->getProperty().batchLimit) {
             externalPtr[name] = data->buffer();
         } else if (externalPtr.find(name) != externalPtr.end()) {
@@ -435,6 +442,7 @@ void MKLDNNPlugin::MKLDNNInferRequest::changeDefaultPtr() {
                 auto& child = input->second->getChildEdgeAt(i)->getChild();
                 if (child->isConstant())
                     canBeInPlace = false;
+
                 auto* concat = dynamic_cast<MKLDNNConcatNode *>(child.get());
                 if (canBeInPlace && concat && concat->isOptimized())
                     canBeInPlace = false;

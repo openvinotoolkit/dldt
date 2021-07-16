@@ -65,24 +65,22 @@ void CNNNetworkNGraphImpl::createDataForResult(const ::ngraph::Output<::ngraph::
             return false;
         }
     };
-    // query shape from ngraph::Parameter output shape and check there are no zeros in it
-    SizeVector dims;
-    if (output.get_partial_shape().is_static()) {
-        dims = output.get_shape();
-    }
-    for (const auto& dim : dims) {
-        if (!dim)
+    auto shape = output.get_partial_shape();
+    auto rank = shape.rank().is_static() ? shape.rank().get_length() : 0;
+    for (const auto& dim : shape) {
+        if (dim.is_static() && dim.get_length() == 0)
             IE_THROW() << outName << " has zero dimension which is not allowed";
     }
 
     if (ptr) {
         const auto origLayout = ptr->getTensorDesc().getLayout();
-        const auto layout = isCompatible(dims.size(), origLayout) ? origLayout : TensorDesc::getLayoutByDims(dims);
-        ptr->reshape(dims, layout);
+        const auto layout = isCompatible(rank, origLayout) ? origLayout
+            : TensorDesc::getLayoutByDims(SizeVector(rank));
+        ptr->reshape(shape, layout);
     } else {
-        const auto layout = TensorDesc::getLayoutByDims(dims);
+        const auto layout = TensorDesc::getLayoutByDims(SizeVector(rank));
         const auto precision = details::convertPrecision(output.get_element_type());
-        ptr.reset(new Data(outName, {precision, dims, layout}));
+        ptr.reset(new Data(outName, precision, shape, layout));
     }
 }
 
@@ -311,7 +309,7 @@ void CNNNetworkNGraphImpl::reshape() {
 }
 
 StatusCode
-CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& inputShapes,
+CNNNetworkNGraphImpl::reshape(const std::map<std::string, ngraph::PartialShape>& inputShapes,
                               ResponseDesc* responseDesc) noexcept {
     if (inputShapes.empty()) return OK;
 
@@ -324,7 +322,7 @@ CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& 
         if (it == inputShapes.end()) {
             continue;
         }
-        if (param->get_partial_shape().is_dynamic() || param->get_shape() != it->second) {
+        if (param->get_partial_shape().is_dynamic() || param->get_partial_shape() != it->second) {
             needReshape = true;
             break;
         }
@@ -343,17 +341,22 @@ CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& 
         ssr_manager.register_pass<ngraph::pass::SmartReshape>();
         ssr_manager.run_passes(_ngraph_function);
 
-        std::map<std::string, ngraph::PartialShape> reshapeShapes;
-        for (const auto & item : inputShapes) {
-            reshapeShapes[item.first] = ngraph::PartialShape(item.second);
-        }
-        reshape(reshapeShapes);
+        reshape(inputShapes);
     } catch (std::exception& ex) {
         reshape(originalInputShapes);
         return DescriptionBuffer(GENERAL_ERROR, responseDesc) << ex.what();
     }
 
     return OK;
+}
+
+StatusCode
+CNNNetworkNGraphImpl::reshape(const std::map<std::string, std::vector<size_t>>& inputShapes,
+                              ResponseDesc* responseDesc) noexcept {
+    std::map<std::string, ngraph::PartialShape> shapes;
+    for (const auto& shape : inputShapes)
+        shapes[shape.first] = ngraph::PartialShape(shape.second);
+    return reshape(shapes, responseDesc);
 }
 
 void
@@ -390,10 +393,6 @@ CNNNetworkNGraphImpl::reshape(const std::map<std::string, ngraph::PartialShape>&
             {
                 OV_ITT_SCOPED_TASK(itt::domains::IE, "CNNNetworkNGraphImpl::ConvertToLegacy");
                 ::ngraph::pass::Manager manager;
-                // resolves dynamism by replacing dynamic operation with static version
-                manager.register_pass<::ngraph::pass::ConvertNMS5ToLegacyMatcher>(false);
-                manager.register_pass<::ngraph::pass::DisableConvertConstantFoldingOnConstPath>();
-                manager.register_pass<::ngraph::pass::ConstantFolding>();
                 // OneHotToLegacy changes output precision
                 manager.register_pass<::ngraph::pass::ConvertOneHotToOneHotIEMatcher>()->detect_output_type(
                         specialized_ngraph_function);

@@ -44,8 +44,8 @@ public:
     void setProperty(const std::map<std::string, std::string> &properties);
     Config getProperty() const;
 
-    void getInputBlobs(InferenceEngine::BlobMap &in_map);
-    void getOutputBlobs(InferenceEngine::BlobMap &out_map);
+    InferenceEngine::Blob::Ptr getInputBlob(const std::string& name);
+    InferenceEngine::Blob::Ptr getOutputBlob(const std::string& name);
 
     template<typename NET>
     void CreateGraph(NET &network,
@@ -57,7 +57,8 @@ public:
     }
 
     void PushInputData(const std::string& name, const InferenceEngine::Blob::Ptr &in);
-    void PullOutputData(const InferenceEngine::BlobMap &out);
+    // TODO [DS]: phase 2: return to constant reference when dynamic blob representation becomes available
+    void PullOutputData(InferenceEngine::BlobMap &out);
 
     void Infer(MKLDNNInferRequest* request = nullptr, int batch = -1);
 
@@ -115,17 +116,17 @@ public:
      * @param layerName
      * Reorder layer name
      * @param inDesc
-     * input tensor descriptor
+     * input memory descriptor
      * @param outDesc
-     * output tensor descriptor
+     * output memory descriptor
      * @param isOptimized
      * optimization flag; if isOptimized is true then Reorder node does nothing
      * @param scales
      * pointer to the blob containing scales
      * @return pointer to the new Reorder node.
      */
-    MKLDNNNodePtr InsertReorder(MKLDNNEdgePtr edge, std::string layerName, const InferenceEngine::TensorDesc& inDesc,
-            const InferenceEngine::TensorDesc& outDesc, bool isOptimized = false, InferenceEngine::Blob::Ptr scales = nullptr);
+    MKLDNNNodePtr InsertReorder(MKLDNNEdgePtr edge, std::string layerName, const MemoryDesc& inDesc,
+            const MemoryDesc& outDesc, bool isOptimized = false);
 
     /**
      * @brief Insert MKLDNNNode at the edge-specified location.

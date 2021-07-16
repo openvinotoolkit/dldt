@@ -20,12 +20,7 @@
 #include "ie_common.h"
 #include "ie_data.h"
 #include "ie_extension.h"
-
-namespace ngraph {
-
-class Function;
-
-}  // namespace ngraph
+#include <ngraph/ngraph.hpp>
 
 namespace InferenceEngine {
 
@@ -188,7 +183,19 @@ public:
      * @param inputShapes A map of pairs: name of corresponding data and its dimension.
      */
     void reshape(const ICNNNetwork::InputShapes& inputShapes);
+
+    /**
+     * @brief Run shape inference with new input shapes for the network
+     * @param inputShapes A map of pairs: name of corresponding data and its dimension.
+     */
+    void reshape(const std::initializer_list<ICNNNetwork::InputShapes::value_type>& inputShapes);
     IE_SUPPRESS_DEPRECATED_END
+
+    /**
+     * @brief Run shape inference with new input partial shapes for the network
+     * @param inputShapes A map of pairs: name of corresponding data and its dimension.
+     */
+    void reshape(const std::map<std::string, ngraph::PartialShape>& inputShapes);
 
     /**
      * @brief Serialize network to IR and weights files.
