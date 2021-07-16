@@ -94,19 +94,3 @@ NGRAPH_TEST(${BACKEND_NAME}, minimum_u16)
     test_case.add_expected_output<uint16_t>(shape, {1, 2, 3, 8, 0, 1448, 1, 1717});
     test_case.run();
 }
-
-NGRAPH_TEST(${BACKEND_NAME}, minimum_u8)
-{
-    Shape shape{2, 2, 2};
-    auto A = make_shared<op::Parameter>(element::u8, shape);
-    auto B = make_shared<op::Parameter>(element::u8, shape);
-    auto f = make_shared<Function>(make_shared<op::v1::Minimum>(A, B), ParameterVector{A, B});
-
-    std::vector<uint8_t> a{4, 7, 25, 14, 123, 245, 18, 22};
-    std::vector<uint8_t> b{255, 12, 43, 1, 4, 250, 11, 77};
-
-    auto test_case = test::TestCase<TestEngine>(f);
-    test_case.add_multiple_inputs<uint8_t>({a, b});
-    test_case.add_expected_output<uint8_t>(shape, {4, 7, 25, 1, 4, 245, 11, 22});
-    test_case.run();
-}
