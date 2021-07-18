@@ -26,6 +26,13 @@ typedef std::tuple<
 class ConvolutionLayerCPUTest : public testing::WithParamInterface<convLayerCPUTestParamsSet>,
     virtual public LayerTestsUtils::LayerTestsCommon, public CpuTestWithFusing {
 public:
+    InferenceEngine::Blob::Ptr GenerateInput(const InferenceEngine::InputInfo &info) const override {
+        if (generateInputPrec != ngraph::element::i8 && generateInputPrec != ngraph::element::u8) {
+            return LayerTestsCommon::GenerateInput(info);
+        }
+        return LayerTestsCommon::GenerateInput(info);
+//        return FuncTestUtils::createAndFillBlob(info.getTensorDesc());
+    }
     static std::string getTestCaseName(const testing::TestParamInfo<convLayerCPUTestParamsSet>& obj) {
         convLayerTestParamsSet basicParamsSet;
         CPUSpecificParams cpuParams;
@@ -51,7 +58,7 @@ public:
     }
 protected:
     bool isBias = false;
-
+    ngraph::element::Type generateInputPrec = ngraph::element::f32;
     void checkBiasFusing(InferenceEngine::ExecutableNetwork &execNet) const {
         auto execGraph = execNet.GetExecGraphInfo().getFunction();
         ASSERT_NE(nullptr, execGraph);
@@ -123,16 +130,30 @@ protected:
         auto convolutionNode = builder::makeConvolutionRelaxed(paramOuts.front(), weiPrc, kernel, stride, padBegin,
             padEnd, dilation, padType, convOutChannels);
 
-        // todo: outPrc?
-        function = makeNgraphFunction(element::f32, inputParams, convolutionNode, "Convolution");
+//        auto lastNode = convolutionNode;
+//        if (inPrc == Precision::U8 || inPrc == Precision::I8) {
+//            lastNode = builder::makeActivation(convolutionNode, ngPrc, ngraph::helpers::Clamp, {}, {0.0f, 255.0f});
+//        }
+
+        scale = inputShape[1];
+        for (int i = 0; i < kernel.size(); i++) {
+            scale *= kernel[i];
+        }
+        scale *= 10 * 10;
+
+
+        // todo: FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc)?
+        function = makeNgraphFunction(element::f32, inputParams, convolutionNode, "Convolution", FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc));
 
         if (inPrc == Precision::U8 || inPrc == Precision::I8) {
             additionalPasses.push_back(std::make_shared<pass::ConvertPrecision<element::i8, element::f32>>());
             additionalPasses.push_back(std::make_shared<pass::ConvertPrecision<element::u8, element::f32>>());
         }
-        if (outPrc != Precision::FP32 && outPrc != Precision::BF16) {
-            additionalPasses.push_back(std::make_shared<ConvertPrecision<opset1::Convolution>>());
-        }
+        generateInputPrec = FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc);
+
+//        if (outPrc != Precision::FP32 && outPrc != Precision::BF16) {
+//            additionalPasses.push_back(std::make_shared<ConvertPrecision<opset1::Convolution>>());
+//        }
     }
 };
 
@@ -161,20 +182,20 @@ namespace {
 
 /* COMMON PARAMS */
 const std::vector<fusingSpecificParams> fusingParamsSet{
-//        emptyFusingSpec,
-//        // eltwise
+        emptyFusingSpec,
+        // eltwise
 //        fusingRelu,
-//        fusingPRelu1D,
+        fusingPRelu1D,
         // depthwise
-        fusingReluScaleShift,
+//        fusingReluScaleShift,
         // fake quantize
 //        fusingFakeQuantizePerTensorRelu,
 //        fusingFakeQuantizePerChannelRelu,
-//        // sum
-//        fusingSumEluFQ,
-//        fusingSum,
-//        // bias
-//        fusingAddPerChannel
+        // sum
+        fusingSumEluFQ,
+        fusingSum,
+        // bias
+        fusingAddPerChannel
 };
 
 const std::vector<fusingSpecificParams> fusingParamsSetBF16{
@@ -219,7 +240,7 @@ const SizeVector numOutChannels_Gemm = { 6 };
 const SizeVector numOutChannels = { 64, 63 };
 
 /* ============= Convolution params (2D) ============= */
-const std::vector<SizeVector> kernels2d = { /*{3, 3},*/ {1, 1} };
+const std::vector<SizeVector> kernels2d = { {3, 3}, {1, 1} };
 const std::vector<SizeVector> strides2d = { {1, 1}/*, {2, 2}*/ };
 const std::vector<std::vector<ptrdiff_t>> padBegins2d = { {0, 0}/*, {1, 1}*/ };
 const std::vector<std::vector<ptrdiff_t>> padEnds2d = { {0, 0} };
@@ -314,7 +335,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_I8, ConvolutionLayerCPUTest,
                                         convParams_ExplicitPadding_GEMM_2D,
                                         ::testing::Values(Precision::FP32),
                                         ::testing::Values(Precision::U8 /*, Precision::I8*/), // i8 primitives are disabled in oneDNN fork
-                                        ::testing::Values(Precision::FP32/*, Precision::U8, Precision::I8*/), // u8/i8 - saturation issue
+                                        ::testing::Values(/*Precision::FP32, */ Precision::U8, Precision::I8), // u8/i8 - saturation issue
                                         ::testing::Values(Layout::ANY),
                                         ::testing::Values(Layout::ANY),
                                         ::testing::Values(std::vector<size_t >({ 2, 12, 7, 7 })),

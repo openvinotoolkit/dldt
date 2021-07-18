@@ -125,7 +125,8 @@ public:
     std::shared_ptr<ngraph::Function> makeNgraphFunction(const ngraph::element::Type &ngPrc,
                                                          ngraph::ParameterVector &params,
                                                          const std::shared_ptr<ngraph::Node> &lastNode,
-                                                         std::string name) const;
+                                                         std::string name,
+                                                         const ngraph::element::Type outPrc = ngraph::element::f32) const;
 
 protected:
     virtual void CheckPluginRelatedResults(InferenceEngine::ExecutableNetwork &execNet, std::string nodeType) const;
@@ -145,6 +146,7 @@ protected:
     std::vector<cpu_memory_format_t> inFmts, outFmts;
     std::vector<std::string> priority;
     std::string selectedType;
+    int scale = 1;
 };
 
 template <typename NodeType>

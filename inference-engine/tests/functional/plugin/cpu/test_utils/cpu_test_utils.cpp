@@ -4,6 +4,7 @@
 
 #include "cpu_test_utils.hpp"
 #include "utils/rt_info/memory_formats_attribute.hpp"
+#include "ngraph_functions/builders.hpp"
 
 namespace CPUTestUtils {
 
@@ -175,9 +176,9 @@ void CPUTestsBase::CheckPluginRelatedResults(InferenceEngine::ExecutableNetwork 
                 ASSERT_EQ(outFmts[i], cpu_str2fmt(actualOutputMemoryFormats[i].c_str()));
             }
 
-//            auto primType = getExecValue(ExecGraphInfoSerialization::IMPL_TYPE);
+            auto primType = getExecValue(ExecGraphInfoSerialization::IMPL_TYPE);
 
-//            ASSERT_EQ(selectedType, primType);
+            ASSERT_EQ(selectedType, primType);
         }
     }
     ASSERT_TRUE(isNodeFound) << "Node type name: \"" << nodeType << "\" has not been found.";
@@ -240,9 +241,24 @@ CPUTestsBase::makeCPUInfo(std::vector<cpu_memory_format_t> inFmts, std::vector<c
 
 std::shared_ptr<ngraph::Function>
 CPUTestsBase::makeNgraphFunction(const ngraph::element::Type &ngPrc, ngraph::ParameterVector &params,
-                                 const std::shared_ptr<ngraph::Node> &lastNode, std::string name) const {
+                                 const std::shared_ptr<ngraph::Node> &lastNode, std::string name,
+                                 const ngraph::element::Type outPrc) const {
    auto newLastNode = modifyGraph(ngPrc, params, lastNode);
    ngraph::ResultVector results;
+
+   if (outPrc == ngraph::element::u8) {
+       const std::vector<float> inLow = {0};
+       const std::vector<float> inHigh = {static_cast<float>(scale)};
+       const std::vector<float> outLow = {0};
+       const std::vector<float> outHigh = {255};
+       newLastNode = ngraph::builder::makeFakeQuantize(newLastNode, ngPrc, 256, {1, 1, 1, 1}, inLow, inHigh, outLow, outHigh);
+   } else if (outPrc == ngraph::element::i8) {
+       const std::vector<float> inLow = {0};
+       const std::vector<float> inHigh = {static_cast<float>(scale)};
+       const std::vector<float> outLow = {-127};
+       const std::vector<float> outHigh = {127};
+       newLastNode = ngraph::builder::makeFakeQuantize(newLastNode, ngPrc, 255, {1, 1, 1, 1}, inLow, inHigh, outLow, outHigh);
+   }
 
    for (int i = 0; i < newLastNode->get_output_size(); i++)
         results.push_back(std::make_shared<ngraph::opset1::Result>(newLastNode->output(i)));

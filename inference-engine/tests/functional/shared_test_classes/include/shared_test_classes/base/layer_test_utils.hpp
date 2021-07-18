@@ -85,11 +85,11 @@ public:
 
     template<class T_IE, class T_NGRAPH>
     static void Compare(const T_NGRAPH *expected, const T_IE *actual, std::size_t size, float threshold) {
-//        for (std::size_t i = 0; i < size; ++i) {
-//            const auto &ref = expected[i];
-//            const auto &res = actual[i];
-//            std::cout << i << ". ref = " << static_cast<float>(ref) << ", res = " << static_cast<float>(res) << std::endl;
-//        }
+        for (std::size_t i = 0; i < size; ++i) {
+            const auto &ref = expected[i];
+            const auto &res = actual[i];
+            std::cout << i << ". ref = " << static_cast<float>(ref) << ", res = " << static_cast<float>(res) << std::endl;
+        }
 
         for (std::size_t i = 0; i < size; ++i) {
             const T_NGRAPH &ref = expected[i];
