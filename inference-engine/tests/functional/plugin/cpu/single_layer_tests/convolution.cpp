@@ -129,6 +129,7 @@ protected:
             scale *= kernel[i];
         }
         scale *= 10 * 10;
+        scale += 1;
 
 
         // todo: FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc)?
