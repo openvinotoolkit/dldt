@@ -24,7 +24,7 @@ enum class modelType {
     TranspConvBcastAddActTransp,        /* Transpose(NHWC->NCHW) => Conv => Broadcasted Add (Bias) => Activation Function => Transpose(NCHW->NHWC) */
     TranspConvBcastAddMaxPoolActTransp, /* Transpose(NHWC->NCHW) => Conv => Broadcasted Add (Bias) => MaxPool => Activation Function => Transpose(NCHW->NHWC) */
     TranspConvTranspBcastAdd,           /* Transpose(NHWC->NCHW) => conv => Transpose(NCHW->NHWC) => Bias */
-    TranspConvTranspBcastAddAct,        /* Transpose(NHWC->NCHW) => Conv => Transpose(NCHW->NHWC) => Bias => Activation Function */
+    TranspConvTranspBcastAddAct         /* Transpose(NHWC->NCHW) => Conv => Transpose(NCHW->NHWC) => Bias => Activation Function */
 };
 
 typedef std::tuple<
@@ -199,12 +199,12 @@ public:
     void SetUp() override;
 public:
     std::shared_ptr<ngraph::Function> function, reference_function;
-    modelType model;
 };
 
 void ConvertPadded2ValidConvTestInvalidFixture::SetUp() {
     bool fq;
     padded2ValidParams params;
+    modelType model;
     ngraph::PartialShape input_shape;
     ngraph::Shape filters_shape, bias_shape, maxpool_shape;
     ngraph::Strides conv_stride, conv_dilation, maxpool_stride;
@@ -242,12 +242,12 @@ public:
         const ConvData& conv_data);
 public:
     std::shared_ptr<ngraph::Function> function, reference_function;
-    modelType model;
 };
 
 void ConvertPadded2ValidConvTestFixture::SetUp() {
     bool fq;
     padded2ValidParams params;
+    modelType model;
     ngraph::PartialShape input_shape;
     ngraph::Shape filters_shape, bias_shape, maxpool_shape;
     ngraph::Strides conv_stride, conv_dilation, maxpool_stride;
@@ -403,23 +403,10 @@ std::shared_ptr<ngraph::Function> ConvertPadded2ValidConvTestFixture::get_refere
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-void execute_test(const modelType& model, std::shared_ptr<ngraph::Function> function, std::shared_ptr<ngraph::Function> reference_function) {
+void execute_test(std::shared_ptr<ngraph::Function> function, std::shared_ptr<ngraph::Function> reference_function) {
     ngraph::pass::Manager manager;
     manager.register_pass<ngraph::pass::InitNodeInfo>();
-
-    switch (model) {
-    default:
-    case modelType::TranspConvTransp:
-    case modelType::TranspConvBcastAddTransp:
-    case modelType::TranspConvBcastAddMaxPoolTransp:
-    case modelType::TranspConvBcastAddActTransp:
-    case modelType::TranspConvBcastAddMaxPoolActTransp:
-    case modelType::TranspConvTranspBcastAdd:
-    case modelType::TranspConvTranspBcastAddAct:
-        manager.register_pass<GNAPluginNS::ConvertPadded2ValidConv>();
-        break;
-    }
-
+    manager.register_pass<GNAPluginNS::ConvertPadded2ValidConv>();
     manager.run_passes(function);
     const FunctionsComparator func_comparator = FunctionsComparator::with_default().enable(FunctionsComparator::ATTRIBUTES);
     const FunctionsComparator::Result result = func_comparator(function, reference_function);
@@ -427,7 +414,7 @@ void execute_test(const modelType& model, std::shared_ptr<ngraph::Function> func
 }
 
 TEST_P(ConvertPadded2ValidConvTestFixture, CompareFunctions) {
-    execute_test(model, function, reference_function);
+    execute_test(function, reference_function);
 }
 
 INSTANTIATE_TEST_SUITE_P(ConvertPadded2ValidConvTestSuite, ConvertPadded2ValidConvTestFixture,
@@ -458,7 +445,7 @@ INSTANTIATE_TEST_SUITE_P(ConvertPadded2ValidConvTestSuite, ConvertPadded2ValidCo
                 ngraph::Shape{1, 1, 1, 4}, ngraph::Strides{1, 1}, ngraph::Shape{1, 2}, ngraph::op::PadType::EXPLICIT))));
 
 TEST_P(ConvertPadded2ValidConvTestInvalidFixture, CompareFunctions) {
-    execute_test(model, function, reference_function);
+    execute_test(function, reference_function);
 }
 
 INSTANTIATE_TEST_SUITE_P(ConvertPadded2ValidConvInvalidTestSuite, ConvertPadded2ValidConvTestInvalidFixture,
