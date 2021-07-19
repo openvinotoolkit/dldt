@@ -221,6 +221,35 @@ bool MultiplyToGroupConvolutionTransformation::canBeTransformedToGroupConvolutio
     return (pShape.rank().get_length() == 4ul) || (pShape.rank().get_length() == 5ul);
 }
 
+bool MultiplyToGroupConvolutionTransformation::isDynamicOrScalar(const std::shared_ptr<const Node>& node) {
+    auto getConstantIndex = [](const std::shared_ptr<const Node>& node) -> int {
+        if (is_type<opset1::Constant>(node->get_input_node_shared_ptr(1))) {
+            return 1;
+        }
+        if (is_type<opset1::Constant>(node->get_input_node_shared_ptr(0))) {
+            return 0;
+        }
+        return -1;
+    };
+
+    const int constantIndex = getConstantIndex(node);
+    if (constantIndex == -1) {
+        return false;
+    }
+
+    const Input<const Node> constantInput = node->input(constantIndex);
+    const auto shape = constantInput.get_partial_shape();
+    if (shape.is_dynamic() || shape.rank().is_dynamic()) {
+        return true;
+    }
+
+    if (std::all_of(shape.begin(), shape.end(), [](const Dimension& dimension) { return dimension == 1ul; })) {
+        return true;
+    }
+
+    return false;
+}
+
 void MultiplyToGroupConvolutionTransformation::setGroupSize(const size_t groupSize) {
     this->groupSize = groupSize;
 }
