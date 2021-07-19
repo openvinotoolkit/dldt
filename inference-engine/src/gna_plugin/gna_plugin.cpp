@@ -766,11 +766,9 @@ void GNAPlugin::LoadNetwork(CNNNetwork & _network) {
 
         passes->registerPass<FlattenTrivialConcatPass>();
 
-        //passes->registerPass<InsertConcatAligningFilterPass>();
-        //passes->registerPass<ReorderConcatInputsPass>();
-
+        passes->registerPass<InsertConcatAligningFilterPass>();
         passes->registerPass<InsertConcatAligningConvolutionFilterPass>();
-        passes->registerPass<ReorderConcatInputsConvolutionPass>();
+        passes->registerPass<ReorderConcatInputsPass>();
 
         passes->registerPass<RemovePermutationsNHWCToNCHWPass>();
         passes->registerPass<InsertIdentityLayerPass>();
