@@ -1728,8 +1728,14 @@ bool MKLDNNEltwiseNode::canFuse(const MKLDNNNodePtr& node) const {
         return false;
     }
 
+    const auto parentEdgesNum = node->getParentEdges().size();
+    for (size_t i = 1; i < parentEdgesNum; i++) {
+        if (node->getParentEdgesAtPort(i)[0]->getParent()->getChildEdges().size() != 1)
+            return false;
+    }
+
     // FQ inputs with quantization parameters will be hided inside post_op object, so will not increase inputs number
-    size_t addedInputEdgesNum = node->getType() != FakeQuantize ? (node->getParentEdges().size() - 1) : 0;
+    size_t addedInputEdgesNum = node->getType() != FakeQuantize ? (parentEdgesNum - 1) : 0;
     if (getParentEdges().size() + addedInputEdgesNum > MAX_ELTWISE_INPUTS)
         return false;
 
