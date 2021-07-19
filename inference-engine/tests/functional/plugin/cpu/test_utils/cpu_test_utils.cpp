@@ -4,6 +4,7 @@
 
 #include "cpu_test_utils.hpp"
 #include "utils/rt_info/memory_formats_attribute.hpp"
+#include "ngraph_functions/builders.hpp"
 
 namespace CPUTestUtils {
 
@@ -243,6 +244,20 @@ CPUTestsBase::makeNgraphFunction(const ngraph::element::Type &ngPrc, ngraph::Par
                                  const std::shared_ptr<ngraph::Node> &lastNode, std::string name) const {
    auto newLastNode = modifyGraph(ngPrc, params, lastNode);
    ngraph::ResultVector results;
+
+   if (outElemType == ngraph::element::u8) {
+       const std::vector<float> inLow = {0};
+       const std::vector<float> inHigh = {static_cast<float>(quantizeInHigh)};
+       const std::vector<float> outLow = {0};
+       const std::vector<float> outHigh = {255};
+       newLastNode = ngraph::builder::makeFakeQuantize(newLastNode, ngPrc, 256, {1, 1, 1, 1}, inLow, inHigh, outLow, outHigh);
+   } else if (outElemType == ngraph::element::i8) {
+       const std::vector<float> inLow = {0};
+       const std::vector<float> inHigh = {static_cast<float>(quantizeInHigh)};
+       const std::vector<float> outLow = {-127};
+       const std::vector<float> outHigh = {127};
+       newLastNode = ngraph::builder::makeFakeQuantize(newLastNode, ngPrc, 255, {1, 1, 1, 1}, inLow, inHigh, outLow, outHigh);
+   }
 
    for (int i = 0; i < newLastNode->get_output_size(); i++)
         results.push_back(std::make_shared<ngraph::opset1::Result>(newLastNode->output(i)));
