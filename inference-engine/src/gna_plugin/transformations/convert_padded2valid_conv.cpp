@@ -36,6 +36,12 @@ struct ConvData {
 static bool GetConvParams(std::shared_ptr<ngraph::opset7::Convolution> conv, ConvData& conv_data) {
     const auto& input = conv->input_value(0);
 
+    // TODO: Check why?
+    // We support only batch 1
+    if (input.get_shape()[0] != 1) {
+        return false;
+    }
+
     conv_data.padding_type = conv->get_auto_pad();
     conv_data.input_channel_count = conv->input_value(0).get_shape()[1];
     conv_data.input_height = conv->input_value(0).get_shape()[2];
