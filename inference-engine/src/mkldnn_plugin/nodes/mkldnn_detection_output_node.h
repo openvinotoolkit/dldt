@@ -6,6 +6,7 @@
 
 #include <ie_common.h>
 #include <mkldnn_node.h>
+#include "common/permute_kernel.h"
 
 namespace MKLDNNPlugin {
 
@@ -15,7 +16,7 @@ public:
 
     void getSupportedDescriptors() override {};
     void initSupportedPrimitiveDescriptors() override;
-    void createPrimitive() override {};
+    void createPrimitive() override;
     void execute(mkldnn::stream strm) override;
     bool created() const override;
 
@@ -52,25 +53,30 @@ private:
     float _confidence_threshold = 0.0f;
     float _objectness_score = 0.0f;
 
-    int _num = 0;
+    int _batch_num = 0;
     int _num_loc_classes = 0;
     int _num_priors = 0;
     bool _priors_batches = false;
+    int _conf_info_len = 0;
 
     enum CodeType {
         CORNER = 1,
         CENTER_SIZE = 2,
     };
 
+    void getActualPriorNum(const float *prior_data, int* num_priors_actual, int n);
+
     void decodeBBoxes(const float *prior_data, const float *loc_data, const float *variance_data,
                       float *decoded_bboxes, float *decoded_bbox_sizes, int* num_priors_actual, int n, const int& offs, const int& pr_size,
-                      bool decodeType = true); // after ARM = false
+                      bool decodeType = true, const int *conf_info_h = nullptr, const int *conf_info_v = nullptr); // decodeType is false after ARM
 
-    void nms_cf(const float *conf_data, const float *bboxes, const float *sizes,
-                int *buffer, int *indices, int &detections, int num_priors_actual);
+    void nms_cf(int* indicesIn, int& detections, int* indicesOut,
+        const float* bboxes, const float* boxSizes);
 
-    void nms_mx(const float *conf_data, const float *bboxes, const float *sizes,
-                int *buffer, int *indices, int *detections, int num_priors_actual);
+    void nms_mx(int* indicesIn, int* detections, int* indicesOut,
+        const float* bboxes, const float* sizes);
+
+    void topk(const int *indicesIn, int *indicesOut, const float *conf, int n, int k);
 
     std::vector<float> _decoded_bboxes;
     std::vector<int> _buffer;
@@ -79,8 +85,11 @@ private:
     std::vector<float> _reordered_conf;
     std::vector<float> _bbox_sizes;
     std::vector<int> _num_priors_actual;
+    std::vector<int> _conf_info_prior;
 
     std::string errorPrefix;
+
+    std::unique_ptr<PermuteKernel> permuteKernel_;
 };
 
 }  // namespace MKLDNNPlugin
