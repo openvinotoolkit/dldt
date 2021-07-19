@@ -75,7 +75,6 @@ protected:
 
         std::tie(inFmts, outFmts, priority, selectedType) = cpuParams;
         std::tie(postOpMgrPtr, fusedOps) = fusingParams;
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         if (postOpMgrPtr)
                 isBias = postOpMgrPtr->getFusedOpsNames() == "Add(PerChannel)";

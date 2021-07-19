@@ -72,7 +72,6 @@ protected:
         CPUSpecificParams cpuParams;
         std::tie(basicParamsSet, cpuParams) = this->GetParam();
         std::tie(inFmts, outFmts, priority, selectedType) = cpuParams;
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         CPULayerTestsDefinitions::ROIAlignSpecificParams roiAlignParams;
         auto netPrecision = InferenceEngine::Precision::UNSPECIFIED;

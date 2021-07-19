@@ -68,7 +68,6 @@ protected:
         MatMulNodeType nodeType;
         fusingSpecificParams fusingParams;
         std::tie(basicParamsSet, nodeType, fusingParams) = this->GetParam();
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         cpuNodeType = nodeType == MatMulNodeType::MatMul ? "MatMul" : "FullyConnected";
 

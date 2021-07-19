@@ -50,7 +50,6 @@ protected:
         std::map<std::string, std::string> additional_config;
         std::tie(inputShapes, logicalOpType, secondInputType, netPrecision, inPrc, outPrc,
                  inLayout, outLayout, targetDevice, additional_config) = basicParamsSet;
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         selectedType = getPrimitiveType() + "_" + inPrc.name();
 

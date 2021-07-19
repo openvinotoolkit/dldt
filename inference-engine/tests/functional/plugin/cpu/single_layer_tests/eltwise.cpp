@@ -36,7 +36,6 @@ protected:
         LayerTestsDefinitions::EltwiseTestParams basicParamsSet;
         CPUSpecificParams cpuParams;
         std::tie(basicParamsSet, cpuParams) = this->GetParam();
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         std::vector<std::vector<size_t>> inputShapes;
         InferenceEngine::Precision netPrecision;

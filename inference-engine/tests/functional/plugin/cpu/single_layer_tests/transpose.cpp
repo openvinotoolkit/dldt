@@ -51,7 +51,6 @@ protected:
         inPrc = outPrc = netPrecision; // since the layer does not convert precisions
 
         std::tie(inFmts, outFmts, priority, selectedType) = cpuParams;
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         selectedType = std::string("unknown_") + inPrc.name();
 

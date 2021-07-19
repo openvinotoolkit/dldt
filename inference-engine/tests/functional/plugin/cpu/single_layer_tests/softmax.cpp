@@ -47,7 +47,6 @@ protected:
         SoftMaxConfig config;
         CPUSpecificParams cpuParams;
         std::tie(netPrecision, config, targetDevice, cpuParams) = this->GetParam();
-        configuration.insert({"DUMP_CONSTANT_NODES", CONFIG_VALUE(YES)});
 
         inPrc = outPrc = netPrecision;
 
