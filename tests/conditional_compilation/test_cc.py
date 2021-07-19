@@ -10,12 +10,12 @@ import glob
 import logging
 import os
 import sys
+
 import numpy as np
 import pytest
-
 from proc_utils import cmd_exec  # pylint: disable=import-error
-from test_utils import get_lib_sizes, infer_tool, make_build, run_infer  # pylint: disable=import-error
 
+from test_utils import get_lib_sizes, infer_tool, make_build, run_infer  # pylint: disable=import-error
 
 log = logging.getLogger()
 
@@ -27,8 +27,9 @@ def test_cc_collect(test_id, model, openvino_ref, test_info,
     :param test_info: custom `test_info` field of built-in `request` pytest fixture.
                       contain a dictionary to store test metadata.
     """
-    out = artifacts / test_id
-    test_info["test_id"] = test_id
+    out = artifacts / test_id / test_id
+    test_info["test_id"] = artifacts / test_id
+
     # cleanup old data if any
     prev_result = glob.glob(f"{out}.pid*.csv")
     for path in prev_result:
@@ -45,7 +46,7 @@ def test_cc_collect(test_id, model, openvino_ref, test_info,
             infer_tool,
             f"-m={model}",
             "-d=CPU",
-            f"-r={out}",
+            f"-r={out}"
         ]
     )
     out_csv = glob.glob(f"{out}.pid*.csv")
@@ -58,7 +59,7 @@ def test_cc_collect(test_id, model, openvino_ref, test_info,
 @pytest.mark.dependency(depends=["cc_collect"])
 def test_minimized_pkg(test_id, model, openvino_root_dir, artifacts):  # pylint: disable=unused-argument
     """Build and install OpenVINO package with collected conditional compilation statistics."""
-    out = artifacts / test_id
+    out = artifacts / test_id / test_id
     install_prefix = out / "install_pkg"
     build_dir = openvino_root_dir / "build_minimized"
 
@@ -80,8 +81,9 @@ def test_minimized_pkg(test_id, model, openvino_root_dir, artifacts):  # pylint:
 @pytest.mark.dependency(depends=["cc_collect", "minimized_pkg"])
 def test_infer(test_id, model, artifacts):
     """Test inference with conditional compiled binaries."""
-    out = artifacts / test_id
+    out = artifacts / test_id / test_id
     minimized_pkg = out / "install_pkg"
+
     return_code, output = run_infer(model, f"{out}_cc.npz", minimized_pkg)
     assert return_code == 0, f"Command exited with non-zero status {return_code}:\n {output}"
 
@@ -89,7 +91,8 @@ def test_infer(test_id, model, artifacts):
 @pytest.mark.dependency(depends=["cc_collect", "minimized_pkg"])
 def test_verify(test_id, model, openvino_ref, artifacts, tolerance=1e-6):  # pylint: disable=too-many-arguments
     """Test verifying that inference results are equal."""
-    out = artifacts / test_id
+    out = artifacts / test_id / test_id
+
     minimized_pkg = out / "install_pkg"
     out_file = f"{out}.npz"
     out_file_cc = f"{out}_cc.npz"
@@ -97,22 +100,28 @@ def test_verify(test_id, model, openvino_ref, artifacts, tolerance=1e-6):  # pyl
     assert return_code == 0, f"Command exited with non-zero status {return_code}:\n {output}"
     return_code, output = run_infer(model, out_file_cc, minimized_pkg)
     assert return_code == 0, f"Command exited with non-zero status {return_code}:\n {output}"
-    reference_results = dict(np.load(out_file))
-    inference_results = dict(np.load(out_file_cc))
-    assert sorted(reference_results.keys()) == sorted(
-        inference_results.keys()
-    ), "Results have different number of layers"
-    for layer in reference_results.keys():
-        assert np.allclose(
-            reference_results[layer], inference_results[layer], tolerance
-        ), "Reference and inference results differ"
+    reference_results = dict(np.load(out_file, allow_pickle=True))
+    inference_results = dict(np.load(out_file_cc, allow_pickle=True))
+    for file in reference_results.keys():
+        assert (reference_results[file].size ==
+                inference_results[file].size
+                ), "Reference and inference has different number of model"
+        for model_number in range(reference_results[file].size):
+            assert sorted(reference_results[file][model_number][0].keys()) == sorted(
+                inference_results[file][model_number][0].keys()
+            ), "Results have different number of layers"
+            for layer in inference_results[file][model_number][0]:
+                assert np.allclose(
+                    inference_results[file][model_number][0][layer], inference_results[file][model_number][0][layer],
+                    tolerance
+                ), "Reference and inference results differ"
 
 
 @pytest.mark.dependency(depends=["cc_collect", "minimized_pkg"])
 def test_libs_size(test_id, model, openvino_ref, artifacts):  # pylint: disable=unused-argument
     """Test if libraries haven't increased in size after conditional compilation."""
     libraries = ["inference_engine_transformations", "MKLDNNPlugin", "ngraph"]
-    minimized_pkg = artifacts / test_id / "install_pkg"
+    minimized_pkg = artifacts / test_id / test_id / "install_pkg"
     ref_libs_size = get_lib_sizes(openvino_ref, libraries)
     lib_sizes = get_lib_sizes(minimized_pkg, libraries)
 
