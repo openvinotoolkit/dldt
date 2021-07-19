@@ -60,18 +60,33 @@ auto has_cycles_of_dependencies(const std::vector<std::set<ngraph::Input<ngraph:
         std::unordered_set<ngraph::Node*> visited;
         std::queue<ngraph::Node*> stack;
         stack.push(from);
-
+        auto add_if_not_visited = [&visited, &stack](ngraph::Node* next){
+            if (visited.count(next) == 0) {
+                stack.push(next);
+            }
+        };
+        unsigned int from_to_distance = 0;
+        const unsigned int max_allowed_distance = 100000;
         while (stack.size() > 0) {
             ngraph::Node* curr = stack.front();
             visited.insert(curr);
 
+            if (from_to_distance++ == max_allowed_distance) {
+                // TODO: Decide if we need a proper error/warning or silently ignore large cycles
+                // throw ngraph_error("Distance in cycle dependencies check is too large.");
+                assert(from_to_distance <= max_allowed_distance);
+                return false;
+            }
             stack.pop();
 
             if (curr != to) {
-                for (const auto& next : curr->get_users()) {
-                    if (visited.count(next.get()) == 0) {
-                        stack.push(next.get());
-                    }
+                const auto all_users = curr->get_users();
+                if (all_users.size() == 1) {
+                    add_if_not_visited(all_users[0].get());
+                } else if (all_users.size() > 1) {
+                    std::unordered_set<std::shared_ptr<Node>> unique_users(all_users.begin(), all_users.end());
+                    for (const auto &n : unique_users)
+                        add_if_not_visited(n.get());
                 }
             } else {
                 return true;
@@ -226,25 +241,43 @@ auto has_supported_in_out(std::shared_ptr<Node> n) -> bool {
 ngraph::snippets::pass::StartSubgraph::StartSubgraph(bool tokenize_by_node) : MatcherPass() {
     MATCHER_SCOPE(StartSubgraph);
 
-    auto has_multiple_output_edges = [](std::shared_ptr<Node> n) -> bool {
-        for (auto out : n->outputs()) {
-            if (out.get_target_inputs().size() != 1) return true;
-        }
-
-        return false;
+    auto mayBeFusedInPlugin = [](std::shared_ptr<Node> n) -> bool {
+        auto &rt = n->get_rt_info();
+        const auto rinfo = rt.find("MayBeFusedInPlugin");
+        if (rinfo == rt.end())
+            return false;
+        return (ngraph::as_type_ptr<ngraph::VariantWrapper<int64_t>>(rinfo->second)->get() == 1);
     };
 
+    auto hasParentInStartedSubgraph = [](std::shared_ptr<Node> node) -> bool {
+        auto inputs = node->inputs();
+        for (auto input : inputs) {
+            auto parent = input.get_source_output().get_node_shared_ptr();
+            auto &rt = parent->get_rt_info();
+            const auto rinfo = rt.find("MayBeFusedInPlugin");
+            if (rinfo != rt.end()) {
+                if (ngraph::as_type_ptr<ngraph::VariantWrapper<int64_t>>(rinfo->second)->get() == 2)
+                    return true;
+            }
+        }
+        return false;
+    };
     register_matcher(std::make_shared<pattern::Matcher>(
         std::make_shared<pattern::op::Label>(pattern::any_input(),
-        [tokenize_by_node, has_multiple_output_edges](std::shared_ptr<Node> n) {
+        [tokenize_by_node, mayBeFusedInPlugin](std::shared_ptr<Node> n) {
             return is_lo(n) &&
                    has_supported_in_out(n) &&
                    (tokenize_by_node || !has_subgraph_as_input(n)) &&
-                   has_multiple_output_edges(n);
+                    (!mayBeFusedInPlugin(n));
         })),
-        [](ngraph::pattern::Matcher &m) -> bool {
+        [hasParentInStartedSubgraph](ngraph::pattern::Matcher &m) -> bool {
         auto node = m.get_match_root();
 
+        auto &rt = node->get_rt_info();
+        rt["MayBeFusedInPlugin"] = std::make_shared<VariantWrapper<int64_t>>(VariantWrapper<int64_t>(2));
+        if (hasParentInStartedSubgraph(node)) {
+            return true;
+        }
         remark(1) << "Match root"
                   << node->get_friendly_name()
                   << " " << node
