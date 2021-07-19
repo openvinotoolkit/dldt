@@ -241,20 +241,19 @@ CPUTestsBase::makeCPUInfo(std::vector<cpu_memory_format_t> inFmts, std::vector<c
 
 std::shared_ptr<ngraph::Function>
 CPUTestsBase::makeNgraphFunction(const ngraph::element::Type &ngPrc, ngraph::ParameterVector &params,
-                                 const std::shared_ptr<ngraph::Node> &lastNode, std::string name,
-                                 const ngraph::element::Type outPrc) const {
+                                 const std::shared_ptr<ngraph::Node> &lastNode, std::string name) const {
    auto newLastNode = modifyGraph(ngPrc, params, lastNode);
    ngraph::ResultVector results;
 
-   if (outPrc == ngraph::element::u8) {
+   if (outElemType == ngraph::element::u8) {
        const std::vector<float> inLow = {0};
-       const std::vector<float> inHigh = {static_cast<float>(scale)};
+       const std::vector<float> inHigh = {static_cast<float>(quantizeInHigh)};
        const std::vector<float> outLow = {0};
        const std::vector<float> outHigh = {255};
        newLastNode = ngraph::builder::makeFakeQuantize(newLastNode, ngPrc, 256, {1, 1, 1, 1}, inLow, inHigh, outLow, outHigh);
-   } else if (outPrc == ngraph::element::i8) {
+   } else if (outElemType == ngraph::element::i8) {
        const std::vector<float> inLow = {0};
-       const std::vector<float> inHigh = {static_cast<float>(scale)};
+       const std::vector<float> inHigh = {static_cast<float>(quantizeInHigh)};
        const std::vector<float> outLow = {-127};
        const std::vector<float> outHigh = {127};
        newLastNode = ngraph::builder::makeFakeQuantize(newLastNode, ngPrc, 255, {1, 1, 1, 1}, inLow, inHigh, outLow, outHigh);

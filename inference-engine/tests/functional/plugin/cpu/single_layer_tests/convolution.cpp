@@ -77,6 +77,15 @@ protected:
         ASSERT_TRUE(foundConv) << "Can't find Convolution node";
     }
 
+    int calculateQuantizeInHigh(const InferenceEngine::SizeVector& kernel, const int ic, const int maxIn0 = 10, const int maxIn1 = 10) const {
+        auto quantizeInHigh = maxIn0 * maxIn1;
+        quantizeInHigh *= ic;
+        for (int i = 0; i < kernel.size(); i++) {
+            quantizeInHigh *= kernel[i];
+        }
+        return quantizeInHigh;
+    }
+
     void SetUp() override {
         using namespace ngraph;
         convLayerTestParamsSet basicParamsSet;
@@ -123,22 +132,18 @@ protected:
         auto convolutionNode = builder::makeConvolutionRelaxed(paramOuts.front(), weiPrc, kernel, stride, padBegin,
             padEnd, dilation, padType, convOutChannels);
 
-        // todo: scale calculation
-        scale = inputShape[1];
-        for (int i = 0; i < kernel.size(); i++) {
-            scale *= kernel[i];
-        }
-        scale *= 10 * 10;
-        scale += 1;
-
-
-        // todo: FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc)?
-        function = makeNgraphFunction(element::f32, inputParams, convolutionNode, "Convolution", FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc));
-
         if (inPrc == Precision::U8 || inPrc == Precision::I8) {
+            threshold = 1.001f;
+            outElemType = FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc);
+            quantizeInHigh = calculateQuantizeInHigh(kernel, inputShape[1]);
             additionalPasses.push_back(std::make_shared<pass::ConvertPrecision<element::i8, element::f32>>());
             additionalPasses.push_back(std::make_shared<pass::ConvertPrecision<element::u8, element::f32>>());
         }
+
+        // todo: FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(outPrc)?
+        function = makeNgraphFunction(element::f32, inputParams, convolutionNode, "Convolution");
+
+
 
         // todo: is it needed?
 //        if (outPrc != Precision::FP32 && outPrc != Precision::BF16) {
@@ -276,8 +281,6 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_GEMM_BF16, ConvolutionLayerCPUTest,
         ::testing::ValuesIn(fusingParamsSetBF16),
         ::testing::Values(cpuBF16PluginConfig)),
     ConvolutionLayerCPUTest::getTestCaseName);
-
-// todo:
 
 
 /* ============= Convolution (GEMM 3D) ============= */
@@ -527,8 +530,6 @@ const std::vector<CPUSpecificParams> CPUParams_1x1_2D = {
     conv_avx2_2D_1x1_nspc,
     conv_avx512_2D_1x1_nspc
 };
-
-
 
 INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_1x1_FP32, ConvolutionLayerCPUTest,
     ::testing::Combine(
