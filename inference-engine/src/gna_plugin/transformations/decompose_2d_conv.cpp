@@ -14,6 +14,7 @@
 #include <ngraph/rt_info.hpp>
 #include <ngraph/pass/manager.hpp>
 #include <ie_common.h>
+#include "backend/gna_limitations.hpp"
 
 
 using namespace GNAPluginNS;
@@ -22,7 +23,6 @@ NGRAPH_RTTI_DEFINITION(Decompose2DConv, "Decompose2DConv", 0);
 NGRAPH_RTTI_DEFINITION(Decompose2DConvTransposedWithBias, "Decompose2DConvTransposedWithBias", 0);
 NGRAPH_RTTI_DEFINITION(Decompose2DConvTransposedWithBiasAF, "Decompose2DConvTransposedWithBiasAF", 0);
 
-#define GNA_MAX_1D_CONV_CHANNEL_COUNT 768
 #define GNA_MAX_PERMUTE_COL_COUNT 8
 
 
@@ -145,14 +145,13 @@ static std::shared_ptr<ngraph::Node> VerifyBiasAndCreateConst(std::shared_ptr<ng
         auto bias_size = shape_size(add_const->get_shape());
 
         // The add may be a normal add not conv bias, then we just go further
-        // TODO: We need to fallback to other matcher in some cases here
         if (bias_size == conv_data.filter_count) {
             const auto* srd_data_pointer = add_const->get_data_ptr<T>();
             std::vector<T> bias_values(srd_data_pointer, srd_data_pointer + bias_size);
             return ngraph::opset7::Constant::create(conv_data.element_type, ngraph::Shape{1, bias_size , 1, 1}, bias_values);
         }
     }
-    // Bias size does not match (or dynamic bias), can't convert such convolution
+    // Bias size does not match (or dynamic bias), can't decompose such convolution
     return nullptr;
 }
 
@@ -161,12 +160,10 @@ static bool VerifyMaxPool(std::shared_ptr<ngraph::opset7::MaxPool> max_pool, Max
     auto pool_strides = max_pool->get_strides();
     auto pool_filter = max_pool->get_kernel();
 
-    // Check if MaxPool vertical stride == pool size
-    // (TODO: remove when 50386 and 50379 are fixed and also verify pool_filter[0] > 8 limitation below, gna_limitations can be used then)
-    // Check if padding is VALID
+    // Check Max Pool padding and limitations
     if (max_pool->get_auto_pad() != ngraph::op::PadType::VALID ||
         pool_filter.size() != 2 || pool_strides.size() != 2 ||
-        pool_filter[0] != pool_strides[0] || pool_filter[0] > 8)
+        pool_filter[0] > GNALimitations::maxPoolMaxWindowSize)
         return false;
 
     pool_data.pool_size_width = pool_filter[1];
@@ -175,11 +172,10 @@ static bool VerifyMaxPool(std::shared_ptr<ngraph::opset7::MaxPool> max_pool, Max
 }
 
 static bool ShouldDecompose(GraphData& graph_data, const ConvData& conv_data, const MaxPoolData& maxpool_data) {
-    // Check if split of plane due to GNA HW limitations of 768 filters is possible
-    // TODO: GNA_MAX_1D_CONV_CHANNEL_COUNT can be moved to limitations
+    // Check if split of plane due to GNA HW limitations of 768 filter elements is possible
     graph_data.conv_count = 1;
     size_t total_factorized_conv_channel_count = (conv_data.input_channel_count * conv_data.filter_height * conv_data.filter_width);
-    while (total_factorized_conv_channel_count / graph_data.conv_count > GNA_MAX_1D_CONV_CHANNEL_COUNT ||
+    while (total_factorized_conv_channel_count / graph_data.conv_count > GNALimitations::convFilterMaxSize ||
         total_factorized_conv_channel_count % graph_data.conv_count != 0 || conv_data.filter_channel_count % graph_data.conv_count != 0)
         graph_data.conv_count++;
 
@@ -288,12 +284,6 @@ static std::vector<std::shared_ptr<ngraph::opset7::Constant>> CreateSplit(const 
 
         auto transpose_before_channel_wise_split = std::make_shared<ngraph::opset7::Transpose>(reshape_before_transpose,
             ngraph::op::Constant::create(ngraph::element::Type_t::i64, ngraph::Shape{2}, {1ll, 0ll})->output(0));
-
-        // TODO: in what cases is this needed? Used only when the conv input plane is beyond GNA limit.
-        // It transposes to the same layout as already done in last step...?
-        // auto reshape_after_transpose = std::make_shared<ngraph::opset7::Reshape>(transpose_before_channel_wise_split,
-        //    ngraph::op::Constant::create(ngraph::element::i64, ngraph::Shape{2}, {(size_t)out_data.conv_count,
-        //        shape_size(padded_input_plane->get_shape()) / out_data.conv_count}), false);
 
         const auto axis_node = ngraph::opset7::Constant::create(ngraph::element::i64, ngraph::Shape{}, {0});
         const auto split = std::make_shared<ngraph::opset7::Split>(transpose_before_channel_wise_split, axis_node, graph_data.conv_count);
@@ -525,13 +515,11 @@ static void Decompose(const GraphData& graph_data, ConvData& conv_data, const Ma
         conv_result = add_result;
     }
 
-    //TODO: maxpool 2D case
+    // TODO: Max Pool 2D case
     //if (graph_data.max_pool && (maxpool_data.pool_size_height > 1 || maxpool_data.pool_stride_height > 1)) {
     //}
 
-    // TOOD: check this, if it's not duplicated in current code, compare to original
-    // it could be put here and also after convolution; besides that check why no bias after trailing transpose is handled here
-    // what with the flag for disable... option?
+    // TODO: Check if bias after transpose should not be added after summing all convolutions instead of just replacing
     // Activation function after trailing Transpose NCHW->NHWC
     if (graph_data.af && graph_data.conv_count > 1) {
         auto af_result = graph_data.af->copy_with_new_inputs({conv_result});
@@ -598,6 +586,22 @@ static std::function<bool(ngraph::Output<ngraph::Node>)> consumers_and_rank(cons
     };
 }
 
+static bool VerifyBias(std::shared_ptr<ngraph::Node> conv, std::shared_ptr<ngraph::Node> bias) {
+    auto add_const = std::dynamic_pointer_cast<ngraph::op::Constant>(bias->input_value(1).get_node_shared_ptr());
+
+    if (!add_const) {
+        add_const = std::dynamic_pointer_cast<ngraph::op::Constant>(bias->input_value(0).get_node_shared_ptr());
+    }
+
+    if (!add_const) {
+        auto bias_size = shape_size(add_const->get_shape());
+        auto conv_filter_count = conv->input_value(1).get_shape()[0];
+        if (bias_size == conv_filter_count)
+            return true;
+    }
+    return false;
+}
+
 Decompose2DConv::Decompose2DConv() {
     MATCHER_SCOPE(Decompose2DConv);
 
@@ -658,6 +662,9 @@ Decompose2DConvTransposedWithBias::Decompose2DConvTransposedWithBias() {
 
     ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
         const auto& pattern_map = m.get_pattern_value_map();
+        if (!VerifyBias(pattern_map.at(conv).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr()))
+            return false;
+
         return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
             pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(), nullptr, nullptr,
             pattern_map.at(bias).get_node_shared_ptr());
@@ -688,10 +695,12 @@ Decompose2DConvTransposedWithBiasAF::Decompose2DConvTransposedWithBiasAF() {
 
     ngraph::matcher_pass_callback callback = [=](ngraph::pattern::Matcher& m) {
         const auto& pattern_map = m.get_pattern_value_map();
+        if (!VerifyBias(pattern_map.at(conv).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr()))
+            return false;
+
         return Convert(pattern_map.at(leading_transpose).get_node_shared_ptr(), pattern_map.at(conv).get_node_shared_ptr(),
             pattern_map.at(trailing_transpose).get_node_shared_ptr(), pattern_map.at(bias).get_node_shared_ptr(),
-            nullptr, pattern_map.at(af).get_node_shared_ptr(),
-            pattern_map.at(af).get_node_shared_ptr());
+            nullptr, pattern_map.at(af).get_node_shared_ptr(), pattern_map.at(af).get_node_shared_ptr());
     };
 
     auto m = std::make_shared<ngraph::pattern::Matcher>(af, matcher_name);

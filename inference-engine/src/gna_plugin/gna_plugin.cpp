@@ -687,9 +687,9 @@ void GNAPlugin::LoadNetwork(CNNNetwork & _network) {
         manager.register_pass<ngraph::pass::CommonOptimizations>();
         manager.register_pass<ConvertPadded2ValidConv>();
         if (config.gnaCompileTarget == InferenceEngine::GNAConfigParams::GNA_TARGET_2_0) {
-            manager.register_pass<Decompose2DConv>();
-            manager.register_pass<Decompose2DConvTransposedWithBias>();
             manager.register_pass<Decompose2DConvTransposedWithBiasAF>();
+            manager.register_pass<Decompose2DConvTransposedWithBias>();
+            manager.register_pass<Decompose2DConv>();
         }
         // TODO enable this transformation for networks with convolutions
         if (!ngraph::op::util::has_op_with_type<ngraph::opset7::Convolution>(graph)) {
